@@ -1,0 +1,2374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>写真でカロリー・栄養バランス｜ダイエット食事記録</title>
+<meta name="description" content="食事の写真を撮るだけでAIがカロリー・栄養素を推定。朝昼晩のバランス（たんぱく質・脂質・塩分・糖質の摂りすぎ／ビタミン・ミネラル不足）を見て、次の食事を提案します。">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2e7d32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="栄養バランス">
+<style>
+  :root{
+    --green:#2e7d32; --green2:#43a047; --green-l:#e8f5e9; --green-bg:#f1f8f4;
+    --blue:#1e88e5; --blue-l:#e3f2fd; --yellow:#f9a825; --yellow-l:#fff8e1;
+    --red:#e53935; --red-l:#ffebee; --ink:#2b3a2e; --sub:#6b7d70; --line:#d9e6dc;
+    --card:#ffffff; --shadow:0 2px 8px rgba(46,125,50,.10);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:"Hiragino Maru Gothic ProN","Yu Gothic",system-ui,sans-serif;
+    color:var(--ink); background:var(--green-bg); line-height:1.6;
+    padding-bottom:calc(64px + env(safe-area-inset-bottom));
+  }
+  a{color:var(--green)}
+  .header{
+    background:linear-gradient(135deg,#43a047,#2e7d32); color:#fff;
+    padding:calc(env(safe-area-inset-top) + 10px) 14px 10px; position:sticky; top:0; z-index:30;
+    box-shadow:0 2px 6px rgba(0,0,0,.12);
+  }
+  .header h1{margin:0;font-size:1.05rem;font-weight:700;display:flex;align-items:center;gap:6px}
+  .header h1 a{color:#fff;text-decoration:none}
+  .header .date-nav{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.95rem}
+  .header .date-nav button{
+    background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:8px;
+    width:34px;height:34px;font-size:1.1rem;cursor:pointer
+  }
+  .header .date-nav .today-btn{width:auto;padding:0 12px;height:34px;font-size:.85rem}
+  .header .date-label{flex:1;text-align:center;font-weight:700}
+  main{max-width:560px;margin:0 auto;padding:12px}
+  .page{display:none}
+  .page.active{display:block;animation:fade .2s}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 10px;font-size:1rem;display:flex;align-items:center;gap:6px}
+  .muted{color:var(--sub);font-size:.85rem}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    background:var(--green);color:#fff;border:none;border-radius:10px;
+    padding:11px 16px;font-size:.95rem;font-weight:700;cursor:pointer;text-decoration:none
+  }
+  .btn:active{transform:scale(.98)}
+  .btn.full{width:100%}
+  .btn.ghost{background:#fff;color:var(--green);border:1.5px solid var(--green)}
+  .btn.sub{background:var(--green-l);color:var(--green);font-weight:700}
+  .btn.gray{background:#eef2ef;color:var(--ink)}
+  .btn.sm{padding:7px 11px;font-size:.82rem;border-radius:8px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  label.field{display:block;margin-bottom:10px;font-size:.85rem;color:var(--sub)}
+  label.field>span{display:block;margin-bottom:3px;font-weight:700;color:var(--ink)}
+  input,select,textarea{
+    width:100%;padding:10px;border:1.5px solid var(--line);border-radius:9px;
+    font-size:16px;font-family:inherit;background:#fff;color:var(--ink)
+  }
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green2)}
+  .seg{display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
+  .seg button{flex:1;background:#fff;border:none;padding:9px 4px;font-size:.85rem;color:var(--sub);cursor:pointer}
+  .seg button.on{background:var(--green);color:#fff;font-weight:700}
+
+  /* ダッシュボード */
+  .kcal-ring{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .ring{position:relative;width:96px;height:96px;flex:0 0 96px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .ctr b{font-size:1.25rem;line-height:1}
+  .ring .ctr small{font-size:.66rem;color:var(--sub)}
+  .kcal-meta{flex:1;font-size:.85rem}
+  .kcal-meta .big{font-size:1.05rem;font-weight:700}
+  .bar{margin:9px 0}
+  .bar .bt{display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:3px}
+  .bar .bt .v{color:var(--sub)}
+  .bar .track{height:9px;background:#eef2ef;border-radius:6px;overflow:hidden}
+  .bar .fill{height:100%;border-radius:6px;transition:width .4s;background:var(--green2)}
+  .bar.lvl-blue .fill{background:var(--blue)} .bar.lvl-blue .tag{color:var(--blue)}
+  .bar.lvl-green .fill{background:var(--green2)} .bar.lvl-green .tag{color:var(--green)}
+  .bar.lvl-yellow .fill{background:var(--yellow)} .bar.lvl-yellow .tag{color:#b27600}
+  .bar.lvl-red .fill{background:var(--red)} .bar.lvl-red .tag{color:var(--red)}
+  .bar .tag{font-weight:700}
+  .summary-line{background:var(--green-l);border-radius:10px;padding:9px 11px;font-size:.88rem;font-weight:700;color:var(--green);margin-top:4px}
+  details.micros{margin-top:6px}
+  details.micros>summary{cursor:pointer;font-size:.85rem;color:var(--green);font-weight:700;padding:6px 0}
+
+  /* 食事セクション */
+  .meal-sec{margin-bottom:10px}
+  .meal-head{display:flex;align-items:center;gap:6px;font-weight:700;font-size:.95rem;margin-bottom:6px}
+  .meal-head .mk{font-size:1.05rem}
+  .meal-head .add{margin-left:auto}
+  .meal-item{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px;margin-bottom:6px;cursor:pointer}
+  .meal-item img{width:52px;height:52px;border-radius:9px;object-fit:cover;flex:0 0 52px;background:var(--green-l)}
+  .meal-item .mi-body{flex:1;min-width:0}
+  .meal-item .mi-body .nm{font-weight:700;font-size:.9rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .meal-item .mi-body .sub{font-size:.78rem;color:var(--sub)}
+  .meal-item .kc{font-weight:700;color:var(--green);font-size:.9rem;white-space:nowrap}
+  .empty-meal{font-size:.82rem;color:var(--sub);padding:4px 2px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .chip{font-size:.74rem;padding:3px 8px;border-radius:20px;font-weight:700}
+  .chip.red{background:var(--red-l);color:var(--red)}
+  .chip.yellow{background:var(--yellow-l);color:#b27600}
+  .chip.blue{background:var(--blue-l);color:var(--blue)}
+  .chip.green{background:var(--green-l);color:var(--green)}
+
+  /* 撮影プレビュー */
+  .preview-wrap{text-align:center}
+  .preview-wrap img{max-width:100%;max-height:46vh;border-radius:12px;border:1px solid var(--line)}
+  .spinner{width:34px;height:34px;border:4px solid var(--green-l);border-top-color:var(--green);border-radius:50%;animation:spin 1s linear infinite;margin:14px auto}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* レビュー編集 */
+  .item-edit{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px;background:#fff}
+  .item-edit .ie-top{display:flex;gap:8px;align-items:center}
+  .item-edit .ie-top input.nm{font-weight:700}
+  .item-edit .gram-row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+  .item-edit .gram-row input[type=number]{width:84px}
+  .item-edit input[type=range]{flex:1 1 100%}
+  .quick{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .nutri-mini{display:flex;gap:10px;flex-wrap:wrap;font-size:.8rem;color:var(--sub);margin-top:8px}
+  .nutri-mini b{color:var(--ink)}
+  .conf-badge{font-size:.72rem;padding:2px 7px;border-radius:20px;font-weight:700;margin-left:auto}
+  .conf-high{background:var(--green-l);color:var(--green)} .conf-mid{background:var(--yellow-l);color:#b27600} .conf-low{background:var(--red-l);color:var(--red)}
+
+  /* 提言カード */
+  .sug-card{border:1px solid var(--line);border-left:5px solid var(--green2);border-radius:12px;padding:12px;margin-bottom:10px;background:#fff}
+  .sug-card.warn{border-left-color:var(--red);background:var(--red-l)}
+  .sug-card.warn-y{border-left-color:var(--yellow);background:var(--yellow-l)}
+  .sug-card h3{margin:0 0 4px;font-size:.95rem}
+  .sug-card .aim{font-size:.82rem;color:var(--sub)}
+  .sug-card .foods{margin-top:6px;font-size:.86rem}
+
+  /* タブバー */
+  .tabbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
+    background:#fff;border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -2px 8px rgba(0,0,0,.05)
+  }
+  .tabbar button{flex:1;background:none;border:none;padding:7px 2px 5px;color:var(--sub);font-size:.68rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px}
+  .tabbar button .ti{font-size:1.25rem;line-height:1}
+  .tabbar button.on{color:var(--green);font-weight:700}
+  .fab-note{font-size:.7rem;color:var(--sub);text-align:center;margin-top:8px}
+  .disclaimer{font-size:.72rem;color:var(--sub);text-align:center;padding:6px 10px 16px;line-height:1.5}
+  .pill{display:inline-block;background:var(--green-l);color:var(--green);border-radius:20px;padding:2px 10px;font-size:.74rem;font-weight:700}
+  .toast{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom) + 16px);transform:translateX(-50%);background:#2b3a2e;color:#fff;padding:10px 16px;border-radius:24px;font-size:.85rem;z-index:60;opacity:0;transition:opacity .25s;pointer-events:none;max-width:90%}
+  .toast.show{opacity:1}
+  .spark{width:100%;height:60px;display:block}
+  .hist-card{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:9px;margin-bottom:7px;background:#fff;cursor:pointer}
+  .hist-card .d{font-weight:700;font-size:.86rem}
+  .keynote{font-size:.78rem;background:var(--blue-l);color:#0d47a1;border-radius:9px;padding:8px 10px;margin-top:8px}
+  hr.sep{border:none;border-top:1px dashed var(--line);margin:12px 0}
+
+  /* 豆知識のトピック切替 */
+  .tips-nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tip-chip{background:#fff;border:1.5px solid var(--line);color:var(--sub);border-radius:20px;padding:7px 12px;font-size:.82rem;font-weight:700;cursor:pointer}
+  .tip-chip.on{background:var(--green);border-color:var(--green);color:#fff}
+  .tips-topic[hidden]{display:none}
+
+  /* 持病チェック */
+  .cond-check{display:flex;align-items:flex-start;gap:10px;padding:10px 4px;border-bottom:1px solid var(--line);font-size:.9rem;cursor:pointer}
+  .cond-check:last-child{border-bottom:none}
+  .cond-check input{width:20px;height:20px;flex:0 0 20px;margin:1px 0 0;padding:0;accent-color:var(--green)}
+  .cond-check span{flex:1}
+
+  /* 振り返り（統計） */
+  .stats-table{width:100%;border-collapse:collapse;font-size:.82rem}
+  .stats-table th,.stats-table td{padding:6px 3px;text-align:center;border-bottom:1px solid var(--line)}
+  .stats-table th{color:var(--sub);font-weight:700;font-size:.76rem}
+  .stats-table td:first-child,.stats-table th:first-child{text-align:left;color:var(--ink)}
+  .stats-table tbody tr:last-child td{border-bottom:none}
+  .wd-chart{display:flex;align-items:flex-end;gap:4px}
+  .wd-col{flex:1;display:flex;flex-direction:column;align-items:center}
+  .wd-bars{height:72px;width:100%;display:flex;align-items:flex-end;justify-content:center}
+  .wd-bar{width:62%;border-radius:3px 3px 0 0;min-height:2px}
+  .wd-val{font-size:.6rem;color:var(--sub);margin-top:3px;line-height:1}
+  .wd-lbl{font-size:.72rem;color:var(--sub);margin-top:2px}
+
+  /* AI推定ラベル（結果画面） */
+  .ai-note{background:var(--blue-l);border:1px solid #bbd7f5;border-radius:10px;padding:10px 12px;font-size:.85rem;color:#0d47a1;margin-bottom:10px}
+  .ai-note b{color:#0d47a1}
+  .ai-note .btn{margin-top:8px}
+
+  /* モーダル（初回免責 / 問題の報告） */
+  .modal-overlay{position:fixed;inset:0;z-index:80;background:rgba(20,30,22,.55);display:flex;align-items:center;justify-content:center;padding:18px}
+  .modal-overlay[hidden]{display:none}
+  .modal-box{background:#fff;border-radius:16px;max-width:480px;width:100%;max-height:88vh;overflow:auto;padding:20px;box-shadow:0 10px 34px rgba(0,0,0,.28)}
+  .modal-box h2{margin:0 0 12px;font-size:1.12rem}
+  .modal-box p{font-size:.9rem;margin:0 0 12px;line-height:1.7}
+  .modal-box .warn-text{background:var(--red-l);border-left:4px solid var(--red);border-radius:8px;padding:10px 12px;color:#8a1f1c}
+  .modal-box .btn{margin-top:4px}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <h1><span id="hdrTitle">きょうの栄養バランス</span></h1>
+  <div class="date-nav" id="dateNav">
+    <button id="prevDay" aria-label="前の日">‹</button>
+    <div class="date-label" id="dateLabel">—</div>
+    <button id="nextDay" aria-label="次の日">›</button>
+    <button class="today-btn" id="todayBtn">今日</button>
+  </div>
+</header>
+
+<main>
+  <!-- ===== ホーム / ダッシュボード ===== -->
+  <section class="page" id="page-home">
+    <div class="card" id="dashCard">
+      <h2>📊 1日のバランス</h2>
+      <div id="dashBody"></div>
+    </div>
+    <div class="card" id="condCard" style="display:none">
+      <h2>🩺 あなたへの食事アドバイス</h2>
+      <div id="condBody"></div>
+    </div>
+    <div id="mealSections"></div>
+    <p class="fab-note">下の「📷 記録」から食事の写真を撮って記録できます</p>
+  </section>
+
+  <!-- ===== 撮影 / 解析 ===== -->
+  <section class="page" id="page-capture">
+    <div class="card">
+      <h2>📷 食事を記録</h2>
+      <label class="field"><span>いつの食事？</span>
+        <div class="seg" id="mealTypeSeg">
+          <button data-mt="breakfast">🌅 朝</button>
+          <button data-mt="lunch">☀️ 昼</button>
+          <button data-mt="dinner">🌙 夜</button>
+          <button data-mt="latenight">🌃 夜食</button>
+          <button data-mt="snack">🍎 間食</button>
+        </div>
+      </label>
+      <div class="seg" id="captureModeSeg" style="margin-bottom:10px">
+        <button data-mode="food" class="on">🍽 料理の写真</button>
+        <button data-mode="barcode">▌▏ バーコード</button>
+        <button data-mode="label">🏷 成分表示</button>
+      </div>
+
+      <!-- 料理写真 / 栄養成分表示（どちらも写真を使う） -->
+      <div id="modePhoto">
+        <div class="preview-wrap" id="capturePreview">
+          <p class="muted" id="photoModeHint">写真を撮るか、アルバムから選んでください。<br>料理が複数なら全部が写るように撮ると、AIが見分けやすくなります。</p>
+        </div>
+        <input type="file" id="photoInput" accept="image/*" hidden>
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
+        <div class="row" style="margin-top:10px">
+          <button class="btn full" id="takePhotoBtn" style="flex:1">📷 写真を撮る</button>
+          <button class="btn ghost full" id="choosePhotoBtn" style="flex:1">🖼️ アルバムから選ぶ</button>
+        </div>
+        <div class="row" id="captureActions" style="margin-top:10px;display:none">
+          <button class="btn full" id="analyzeBtn">🤖 AIで栄養を解析</button>
+          <button class="btn ghost full" id="manualEntryBtn">✏️ AIを使わず手で入力</button>
+          <button class="btn gray sm" id="retakeBtn">撮り直す</button>
+        </div>
+        <div id="analyzeStatus" style="margin-top:10px"></div>
+      </div>
+
+      <!-- バーコード読み取り -->
+      <div id="modeBarcode" hidden>
+        <div id="scannerWrap" style="display:none">
+          <video id="bcVideo" playsinline muted style="width:100%;border-radius:12px;background:#000;max-height:48vh;object-fit:cover"></video>
+          <p class="muted" style="text-align:center;margin:6px 0">バーコードを画面の中に映してください</p>
+          <button class="btn gray sm full" id="bcStopBtn">スキャンを止める</button>
+        </div>
+        <button class="btn full" id="bcScanBtn">▌▏ カメラでバーコードを読む</button>
+        <div id="bcManualWrap" style="margin-top:12px">
+          <label class="field"><span>または番号を手入力（13桁／8桁）</span>
+            <input type="text" id="bcManualCode" inputmode="numeric" autocomplete="off" placeholder="例: 4901005510357">
+          </label>
+          <p class="muted" id="bcErr" hidden style="color:var(--red)"></p>
+          <button class="btn sub full" id="bcLookupBtn">この番号で探す</button>
+        </div>
+        <div id="bcStatus" style="margin-top:10px"></div>
+        <p class="muted" style="margin-top:8px">市販品のバーコードから栄養を取り込みます（海外製品に強く、日本の商品は見つからないことがあります）。見つからないときは「🏷 成分表示」で表を撮るのが確実です。</p>
+      </div>
+
+      <p class="muted" style="margin-top:10px">🔒 写真は解析のときだけGoogle(Gemini)へ送られ、端末内には小さな縮小版だけが保存されます。APIキーもこの端末だけに保存されます。</p>
+    </div>
+  </section>
+
+  <!-- ===== 解析結果の確認・手修正 ===== -->
+  <section class="page" id="page-review">
+    <div class="card">
+      <h2>✅ 内容の確認・修正</h2>
+      <p class="muted">AIの推定はあくまで下書きです。料理名・分量を直すと栄養も自動で計算し直します。<span class="pill">確信度が低い項目は要チェック</span></p>
+      <div id="reviewItems"></div>
+      <button class="btn ghost sm" id="addItemBtn">＋ 品目を追加</button>
+      <hr class="sep">
+      <div id="reviewTotals"></div>
+      <div id="reviewMealFlags"></div>
+      <div class="row" style="margin-top:12px">
+        <button class="btn full" id="saveMealBtn">この内容で保存</button>
+        <button class="btn gray sm" id="cancelReviewBtn">やめる</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 次の食事の提言 ===== -->
+  <section class="page" id="page-suggest">
+    <div class="card">
+      <h2>🍽 次の食事の提案</h2>
+      <div id="suggestSummary"></div>
+    </div>
+    <div id="suggestCards"></div>
+    <div class="card" id="aiSuggestCard">
+      <h2>🤖 AIで詳しく提案</h2>
+      <p class="muted">APIキーを設定していれば、今日の不足・過剰に合わせた献立をAIが考えます（任意）。</p>
+      <button class="btn sub full" id="aiSuggestBtn">AIに今日の夕食を相談</button>
+      <div id="aiSuggestResult" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ===== 履歴 ===== -->
+  <section class="page" id="page-history">
+    <div class="card" id="statsCard">
+      <h2>📊 振り返り（平均と傾向）</h2>
+      <div id="statsBody"></div>
+    </div>
+    <div class="card">
+      <h2>⚖️ 体重の記録</h2>
+      <div class="row" style="align-items:flex-end">
+        <label class="field" style="flex:1;margin-bottom:0"><span>今日の体重 (kg)</span>
+          <input type="number" id="weightInput" step="0.1" placeholder="例: 62.5" inputmode="decimal">
+        </label>
+        <button class="btn" id="saveWeightBtn">記録</button>
+      </div>
+      <svg class="spark" id="weightSpark" viewBox="0 0 320 60" preserveAspectRatio="none"></svg>
+      <p class="muted" id="weightNote"></p>
+    </div>
+    <div class="card">
+      <h2>📅 これまでの記録</h2>
+      <svg class="spark" id="kcalSpark" viewBox="0 0 320 60" preserveAspectRatio="none"></svg>
+      <p class="muted">直近14日のカロリー（緑＝目標内 / 赤＝超過）</p>
+      <div id="historyList"></div>
+    </div>
+    <div class="card">
+      <h2>💾 バックアップ</h2>
+      <p class="muted">機種変更やデータ消失に備え、全データをJSONで保存・復元できます。<br>🩺 <b>半年に一度（血液検査のタイミングなど）の書き出しがおすすめ</b>。スマホ側の操作でデータが消えることがあるため、長期の記録はバックアップが安心です。<br>※容量節約のため、3か月より前の食事写真は自動で整理されます（カロリー・塩分などの数値データはずっと残ります）。<br>※書き出したファイルには食事写真・体重などの健康情報が平文で含まれます。共有・保管にご注意ください。</p>
+      <div class="row">
+        <button class="btn sub" id="exportBtn">書き出す</button>
+        <label class="btn gray" for="importFile">読み込む</label>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 豆知識 ===== -->
+  <section class="page" id="page-tips">
+    <div class="tips-nav" id="tipsNav">
+      <button class="tip-chip on" data-topic="oil">🫒 油</button>
+      <button class="tip-chip" data-topic="salt">🧂 塩分</button>
+      <button class="tip-chip" data-topic="protein">🍗 たんぱく質</button>
+      <button class="tip-chip" data-topic="snack">🍎 間食</button>
+      <button class="tip-chip" data-topic="water">💧 水分</button>
+      <button class="tip-chip" data-topic="eatout">🍽 外食</button>
+      <button class="tip-chip" data-topic="latenight">🌃 夜食</button>
+      <button class="tip-chip" data-topic="bowel">🚽 便秘</button>
+    </div>
+
+    <div class="tips-topic" data-topic="oil">
+    <div class="card">
+      <h2>💡 油の選び方</h2>
+      <p class="muted">同じ「脂質」でも、油の<b>種類</b>で体への影響は大きく変わります。油はどれも大さじ1で約110kcalと高カロリー。<b>量はほどほど・種類は良いものを</b>が基本です。</p>
+    </div>
+
+    <div class="sug-card">
+      <h3>◎ 積極的にとりたい「良い油」</h3>
+      <p class="aim">不飽和脂肪酸が中心。常温で液体の油</p>
+      <div class="foods">
+        ・<b>オリーブオイル</b>（特にエクストラバージン）…炒め物・サラダに<br>
+        ・<b>米油・なたね（キャノーラ）油</b>…クセがなく普段の加熱調理に<br>
+        ・<b>青魚の脂</b>（さば・いわし・さんま・鮭）…EPA/DHAが豊富。週2〜3回が目安<br>
+        ・<b>えごま油・アマニ油</b>（オメガ3）…熱に弱いので<b>加熱せず</b>サラダやみそ汁にかけて
+      </div>
+    </div>
+
+    <div class="sug-card warn-y">
+      <h3>△ とりすぎ注意「飽和脂肪酸」</h3>
+      <p class="aim">動物性の脂・常温で固まる油</p>
+      <div class="foods">
+        バター・生クリーム・ラード・肉の脂身・ココナッツオイルなど。<br>
+        とりすぎるとLDL（悪玉）コレステロールが上がりやすくなります。<b>全部ダメではなく「控えめに」</b>。
+        <div class="chips"><span class="chip yellow">目安は1日のエネルギーの7%まで</span></div>
+      </div>
+    </div>
+
+    <div class="sug-card warn">
+      <h3>✕ できるだけ避けたい「悪い油」</h3>
+      <p class="aim">トランス脂肪酸・酸化した古い油</p>
+      <div class="foods">
+        ・<b>トランス脂肪酸</b>…マーガリン・ショートニングや、それを多く使った菓子パン・洋菓子・スナック（※製品によって差があります）<br>
+        ・<b>酸化した古い油</b>…何度も使い回した揚げ油、開封後に長く置いた油<br>
+        とりすぎると動脈硬化のリスク。WHOも「できるだけ減らす」ことを勧めています。
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🍳 毎日のちょいコツ</h2>
+      <div class="keynote">
+        ・「揚げる」より <b>蒸す・茹でる・焼く</b><br>
+        ・油は“足す”より <b>“替える”</b>：バター → オリーブ油・米油<br>
+        ・ドレッシングは少量を“かける”、青魚を週2〜3回<br>
+        ・良い油でも<b>カロリーは高い</b>。入れすぎ注意（大さじ1で約110kcal）
+      </div>
+      <p class="muted" style="margin-top:10px">※健康な方向けの一般的な目安です。脂質制限が必要な持病・服薬中の方は医師・管理栄養士にご相談ください。</p>
+    </div>
+    </div><!-- /topic oil -->
+
+    <!-- ===== 塩分を減らす ===== -->
+    <div class="tips-topic" data-topic="salt" hidden>
+      <div class="card">
+        <h2>🧂 塩分の減らし方</h2>
+        <p class="muted">塩分のとりすぎは<b>高血圧</b>→脳卒中・心臓病・腎臓病のリスクに。日本人は平均約10g/日でとりすぎ気味。目標は<b>男性7.5g・女性6.5g未満</b>（血圧が気になる人は6g未満）。</p>
+      </div>
+
+      <div class="sug-card">
+        <h3>◎ きょうからできる減塩のコツ</h3>
+        <div class="foods">
+          ・しょうゆ・ソースは「かける」より<b>小皿につける</b><br>
+          ・<b>麺類のつゆ・スープは残す</b>（ラーメンの汁を全部飲むと約6g）<br>
+          ・味噌汁は1日1杯・<b>具だくさん</b>にして汁を減らす<br>
+          ・うま味と香りで満足感を…<b>出汁・昆布・かつお節／酢・レモン／こしょう・カレー粉・生姜・にんにく・ねぎ・大葉</b><br>
+          ・買うときは<b>「食塩相当量」</b>の表示をチェック
+        </div>
+      </div>
+
+      <div class="sug-card warn-y">
+        <h3>△ 塩分が多い“かくれ塩”に注意</h3>
+        <div class="foods">
+          ハム・ウインナー・ベーコンなど加工肉、ちくわ・かまぼこなど練り物、漬物・梅干し、パン、インスタント麺・スープ、スナック菓子。
+          <div class="chips"><span class="chip yellow">梅干し1個で約2g</span><span class="chip yellow">カップ麺1個で約5〜6g</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🥬 カリウムで塩を“出す”</h2>
+        <div class="keynote">
+          野菜・果物・海藻・大豆・いも類に多い<b>カリウム</b>は、余分な塩分（ナトリウム）の排出を助けます。<br>
+          ・<b>バナナ・ほうれん草・さつまいも・アボカド・わかめ・大豆</b>
+        </div>
+        <p class="muted" style="margin-top:10px">※腎臓病・服薬中でカリウム制限がある方は、自己判断で増やさず主治医にご相談ください。</p>
+      </div>
+    </div><!-- /topic salt -->
+
+    <!-- ===== たんぱく質の取り方 ===== -->
+    <div class="tips-topic" data-topic="protein" hidden>
+      <div class="card">
+        <h2>🍗 たんぱく質の取り方</h2>
+        <p class="muted">筋肉・肌・髪・免疫の材料。<b>減量中こそ不足は禁物</b>—足りないと筋肉が落ちて代謝が下がり、リバウンドしやすくなります。</p>
+      </div>
+
+      <div class="sug-card">
+        <h3>◎ 1日の目安と取り方</h3>
+        <p class="aim">体重1kgあたり約1g（体重60kgなら約60g）</p>
+        <div class="foods">
+          ・<b>3食に分ける</b>のがコツ。1食20〜30gずつ<br>
+          ・特に<b>朝に不足しがち</b>—卵・納豆・ヨーグルトを1品<br>
+          ・量の目安…<b>手のひら1枚分の肉・魚で約20g</b>／卵1個・納豆1パック・豆腐半丁で各6〜10g
+        </div>
+      </div>
+
+      <div class="sug-card">
+        <h3>◎ 良いたんぱく源</h3>
+        <div class="foods">
+          ・動物性…<b>鶏むね・ささみ・赤身肉・魚（特に青魚）・卵・乳製品</b><br>
+          ・植物性…<b>豆腐・納豆・大豆・枝豆</b><br>
+          ・脂を抑えるなら…鶏は<b>皮を外す</b>、肉は<b>赤身</b>、<b>揚げずに焼く・蒸す・茹でる</b><br>
+          ・手軽に足すなら…ゆで卵・無糖ヨーグルト・冷奴・サラダチキン
+        </div>
+      </div>
+
+      <div class="sug-card warn-y">
+        <h3>△ 注意点</h3>
+        <div class="foods">
+          ・<b>加工肉</b>（ハム・ソーセージ・ベーコン）は塩分・飽和脂肪酸も多め。とりすぎ注意<br>
+          ・腎臓に不安がある方・透析中の方は、たんぱく質の量を主治医とご相談ください
+        </div>
+      </div>
+    </div><!-- /topic protein -->
+
+    <!-- ===== 間食の選び方 ===== -->
+    <div class="tips-topic" data-topic="snack" hidden>
+      <div class="card">
+        <h2>🍎 間食の選び方</h2>
+        <p class="muted">間食＝悪ではありません。食事の間が空きすぎると<b>ドカ食い</b>のもとに。選び方と量しだいで味方になります。<b>目安は1日200kcalまで</b>。</p>
+      </div>
+
+      <div class="sug-card">
+        <h3>◎ 選びたいおやつ</h3>
+        <div class="foods">
+          ・たんぱく質系…<b>無糖ヨーグルト・チーズ・ゆで卵・枝豆・サラダチキン</b><br>
+          ・食物繊維・ビタミン…<b>果物（適量）・素焼きナッツ（ひとつかみ）・干し芋少量</b><br>
+          ・小腹満たし…<b>高カカオチョコ少量・するめ・昆布</b>
+        </div>
+      </div>
+
+      <div class="sug-card warn">
+        <h3>✕ 控えめにしたいもの</h3>
+        <div class="foods">
+          砂糖たっぷりの<b>菓子パン・ケーキ・クッキー・スナック菓子</b>、<b>ジュース・加糖コーヒー</b>。
+          <div class="chips"><span class="chip red">甘い飲み物は液体で一気に糖質オーバー</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🕒 食べ方のコツ</h2>
+        <div class="keynote">
+          ・<b>時間を決める</b>。夜遅い間食は脂肪になりやすい→寝る2〜3時間前まで<br>
+          ・袋ごとでなく<b>「お皿に出す分だけ」</b><br>
+          ・<b>甘い飲み物を水・お茶・無糖炭酸に替える</b>だけで大きく減らせる<br>
+          ・小腹がすいたら、まず水分・温かいお茶を試す
+        </div>
+      </div>
+    </div><!-- /topic snack -->
+
+    <!-- ===== 水分の取り方 ===== -->
+    <div class="tips-topic" data-topic="water" hidden>
+      <div class="card">
+        <h2>💧 水分の取り方</h2>
+        <p class="muted">体の約60%は水分。不足は<b>便秘・むくみ・だるさ・熱中症</b>のもとに。減量中も代謝に水分が必要です。</p>
+      </div>
+
+      <div class="sug-card">
+        <h3>◎ 1日の目安と飲み方</h3>
+        <p class="aim">飲み物から約1.2〜1.5L（食事に含まれる水分は別）</p>
+        <div class="foods">
+          ・コップ1杯（約200ml）を<b>1日6〜8回</b>に分けて<br>
+          ・一気飲みより<b>こまめに</b>…起床時・各食事・入浴前後・就寝前<br>
+          ・<b>のどが渇く前に</b>。高齢の方・服薬中の方は特に意識して
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🥤 何で取る？</h2>
+        <div class="keynote">
+          ・基本は<b>水・麦茶など（カフェインの少ないもの）</b><br>
+          ・コーヒー・緑茶・お酒は利尿作用で逆効果になりやすい（お酒は水分に数えない）<br>
+          ・<b>ジュース・加糖コーヒー・スポーツ飲料で水分補給しない</b>＝糖質オーバーに
+        </div>
+        <p class="muted" style="margin-top:10px">※心臓・腎臓の病気で水分制限がある方は、主治医の指示を優先してください。</p>
+      </div>
+    </div><!-- /topic water -->
+
+    <!-- ===== 外食の選び方 ===== -->
+    <div class="tips-topic" data-topic="eatout" hidden>
+      <div class="card">
+        <h2>🍽 外食の選び方</h2>
+        <p class="muted">外食でも選び方しだいでバランスは取れます。ポイントは<b>「単品より定食」「揚げ物より焼く・蒸す」「汁は残す」</b>。</p>
+      </div>
+
+      <div class="sug-card">
+        <h3>◎ 注文のコツ</h3>
+        <div class="foods">
+          ・<b>単品より定食</b>…主菜・野菜・主食がそろいバランス◎<br>
+          ・丼・麺・カレー単品は<b>糖質に偏りがち</b>→小鉢・サラダ・卵を1品足す<br>
+          ・<b>揚げ物より焼き魚・刺身・しょうが焼き・蒸し鶏</b><br>
+          ・麺の<b>つゆ・スープは残す</b>、ご飯は「少なめ」、ドレッシングは「別添え」
+        </div>
+      </div>
+
+      <div class="sug-card warn-y">
+        <h3>△ 気をつけたい組み合わせ</h3>
+        <div class="foods">
+          ラーメン＋チャーハン/餃子の<b>炭水化物W</b>、大盛り無料、食べ放題、こってり系（豚骨・濃厚パスタ）、揚げ物盛り合わせ。
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🏪 お店別ヒント</h2>
+        <div class="keynote">
+          ・牛丼店…牛丼単品より<b>定食＋豚汁＋サラダ</b>、ご飯少なめ<br>
+          ・ファミレス…<b>和定食やグリル＋ライス少なめ</b>、スープバーは野菜系<br>
+          ・コンビニ…<b>おにぎり＋サラダチキン＋味噌汁＋カット野菜</b>が手軽でバランス良
+        </div>
+      </div>
+    </div><!-- /topic eatout -->
+
+    <!-- ===== 夜食 ===== -->
+    <div class="tips-topic" data-topic="latenight" hidden>
+      <div class="card">
+        <h2>🌃 夜食との付き合い方</h2>
+        <p class="muted">夜は消費が少なく、脂肪をためる<b>BMAL1</b>というタンパク質が22時〜深夜に増えます。理想は<b>寝る2〜3時間前まで</b>に食べ終えること。</p>
+      </div>
+
+      <div class="sug-card">
+        <h3>◎ どうしても食べるなら</h3>
+        <p class="aim">温かい・消化に良い・少量（200kcal以内）</p>
+        <div class="foods">
+          ・具少なめの<b>味噌汁・スープ・湯豆腐・おかゆ・茶碗蒸し</b><br>
+          ・低脂質で…<b>ヨーグルト・ホットミルク・バナナ半分・ゆで卵・冷奴</b>
+        </div>
+      </div>
+
+      <div class="sug-card warn">
+        <h3>✕ 夜遅くは避けたいもの</h3>
+        <div class="foods">
+          ラーメン・カップ麺・揚げ物・スナック菓子・菓子パン・甘いもの・大盛り。寝る直前のお酒も睡眠の質を下げます。
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>💡 そもそも夜お腹がすくなら</h2>
+        <div class="keynote">
+          ・夕食に<b>たんぱく質と食物繊維</b>を増やすと腹持ちUP<br>
+          ・空腹が我慢できないときは、まず<b>白湯・温かいお茶</b>を試す
+        </div>
+      </div>
+    </div><!-- /topic latenight -->
+
+    <!-- ===== 便秘対策 ===== -->
+    <div class="tips-topic" data-topic="bowel" hidden>
+      <div class="card">
+        <h2>🚽 便秘対策</h2>
+        <p class="muted">薬に頼る前に、まずは<b>食物繊維・水分・発酵食品＋生活リズム</b>。減量中の食事制限で便秘になる人も多いので意識して。</p>
+      </div>
+
+      <div class="sug-card">
+        <h3>◎ 食事の3つの柱</h3>
+        <div class="foods">
+          ・<b>食物繊維は2種類</b>…<b>水溶性</b>(海藻・果物・大麦・オクラ・里芋＝便をやわらかく)＋<b>不溶性</b>(野菜・きのこ・豆・玄米＝かさを増やす)。もち麦ご飯が手軽<br>
+          ・<b>水分</b>…朝コップ1杯の水で腸を刺激。1日1.2〜1.5L<br>
+          ・<b>発酵食品＋オリゴ糖</b>…ヨーグルト・納豆・味噌＋バナナ・玉ねぎで善玉菌を育てる
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🚶 生活のコツ</h2>
+        <div class="keynote">
+          ・<b>朝食を抜かない</b>（胃腸が動いて便意が起きる）<br>
+          ・適度な運動＋お腹を「の」の字にマッサージ<br>
+          ・<b>便意を我慢しない</b>・トイレを習慣に<br>
+          ・<b>良い油（オリーブ油・米油）も少量は必要</b>。極端な脂質カットは逆効果
+        </div>
+        <p class="muted" style="margin-top:10px">※急な便秘・血便・体重減少・激しい腹痛を伴うときは、自己対処せず医療機関を受診してください。</p>
+      </div>
+    </div><!-- /topic bowel -->
+  </section>
+
+  <!-- ===== 設定 / オンボーディング ===== -->
+  <section class="page" id="page-setup">
+    <div class="card">
+      <h2>⚙️ あなたの目標設定</h2>
+      <p class="muted">体に合った1日の目標（カロリー・栄養素）を計算します。数値は厚生労働省『日本人の食事摂取基準(2025年版)』に基づきます。</p>
+      <div class="row">
+        <label class="field" style="flex:1"><span>性別</span>
+          <select id="setSex"><option value="male">男性</option><option value="female">女性</option></select>
+        </label>
+        <label class="field" style="flex:1"><span>年齢</span>
+          <input type="number" id="setAge" min="18" max="110" placeholder="歳" inputmode="numeric">
+        </label>
+      </div>
+      <label class="field"><span>身体活動レベル</span>
+        <select id="setActivity">
+          <option value="0">低い（座っていることが多い）</option>
+          <option value="1" selected>ふつう（通勤・家事・軽い運動）</option>
+          <option value="2">高い（立ち仕事・活発な運動）</option>
+        </select>
+      </label>
+      <label class="field"><span>目標</span>
+        <select id="setGoal">
+          <option value="lose">しっかり減量（−400kcal）</option>
+          <option value="mild" selected>ゆるく減量（−250kcal）</option>
+          <option value="keep">体重を維持</option>
+          <option value="gain">増やす（＋300kcal）</option>
+        </select>
+      </label>
+      <label class="field" id="menstWrap" style="display:none"><span>鉄の目標</span>
+        <select id="setMenst">
+          <option value="1">月経あり（鉄を多めに）</option>
+          <option value="0">月経なし</option>
+        </select>
+      </label>
+      <label class="field"><span>塩分</span>
+        <select id="setSalt">
+          <option value="0">標準（男性7.5g／女性6.5g 未満）</option>
+          <option value="1">減塩（6.0g 未満・高血圧などが気になる方）</option>
+        </select>
+      </label>
+      <div class="row">
+        <label class="field" style="flex:1"><span>身長 (cm) 任意</span>
+          <input type="number" id="setHeight" step="0.1" placeholder="任意" inputmode="decimal">
+        </label>
+        <label class="field" style="flex:1"><span>体重 (kg) 任意</span>
+          <input type="number" id="setWeight" step="0.1" placeholder="任意" inputmode="decimal">
+        </label>
+      </div>
+      <label class="field"><span>苦手・避けたい食材（提案で考慮・任意）</span>
+        <input type="text" id="setExcludes" placeholder="例: 甲殻類, なす">
+      </label>
+      <div id="targetPreview"></div>
+    </div>
+
+    <div class="card">
+      <h2>🩺 持病・健康上の注意（任意）</h2>
+      <p class="muted">当てはまるものにチェックすると、ホームに<b>あなた向けの食事アドバイス</b>を表示します。</p>
+      <div id="condChecks">
+        <label class="cond-check"><input type="checkbox" class="cond" value="dyslipidemia"><span>脂質異常症（コレステロール・中性脂肪が高い）</span></label>
+        <label class="cond-check"><input type="checkbox" class="cond" value="diabetes"><span>糖尿病・血糖が高い</span></label>
+        <label class="cond-check"><input type="checkbox" class="cond" value="fattyliver"><span>脂肪肝</span></label>
+        <label class="cond-check"><input type="checkbox" class="cond" value="gout"><span>痛風・尿酸値が高い（高尿酸血症）</span></label>
+        <label class="cond-check"><input type="checkbox" class="cond" value="hypertension"><span>高血圧</span></label>
+        <label class="cond-check"><input type="checkbox" class="cond" value="kidney"><span>腎臓病・透析を受けている</span></label>
+      </div>
+      <p class="muted" style="font-size:.74rem;margin-top:10px;line-height:1.5">※ここでの助言は一般的な目安です。診断・治療・食事制限は必ず医師・管理栄養士の指示を優先してください。とくに<b>腎臓病・透析中の方は、一般的な健康アドバイス（野菜・果物・水分を増やす等）と異なる管理が必要</b>です。</p>
+    </div>
+
+    <div class="card">
+      <h2>🔑 AI（Gemini）APIキー</h2>
+      <p class="muted">写真の栄養解析にはGoogleの無料AIキーが必要です。キーは<b>この端末だけ</b>に保存され、写真と一緒にGoogleにのみ送られます。</p>
+      <label class="field"><span>Gemini APIキー</span>
+        <input type="password" id="setApiKey" placeholder="AIza... で始まるキー" autocomplete="off">
+      </label>
+      <label class="field"><span>使うモデル</span>
+        <input type="text" id="setModel" placeholder="gemini-2.5-flash">
+      </label>
+      <p class="muted" style="margin-top:-4px">うまく解析できないときは <b>gemini-2.5-flash</b>（推奨）や <b>gemini-flash-latest</b> を試してください。</p>
+      <p class="muted">無料キーは <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a> で取得できます（Googleアカウントでログイン→「Create API key」）。キーがなくても、手入力と提案機能は使えます。</p>
+      <div class="row">
+        <button class="btn full" id="saveSetupBtn">保存する</button>
+      </div>
+      <button class="btn gray sm" id="resetAllBtn" style="margin-top:10px">全データを削除</button>
+    </div>
+
+    <div class="card">
+      <h2>📄 プライバシー・免責事項</h2>
+      <p class="muted">本アプリのカロリー・栄養値はAIによる<b>推定・目安</b>です。<b>医療機器ではなく</b>、診断・治療を行うものではありません。持病・妊娠中・服薬中の方は医師・管理栄養士にご相談ください。データはこの端末内にのみ保存されます。</p>
+      <a class="btn ghost full" href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー・免責事項を読む</a>
+      <button class="btn gray sm full" id="showDisclaimerBtn" style="margin-top:8px">医療免責をもう一度表示</button>
+    </div>
+  </section>
+
+  <p class="disclaimer">
+    ※本アプリの数値はAIによる推定・一般的な目安です。<b>医療機器ではなく、病気の診断・治療や医療上の助言を行うものではありません。</b><br>
+    「糖質」は炭水化物の量で表示しています（炭水化物 ≒ 糖質＋食物繊維）。<br>
+    ビタミンA・鉄・ビタミンDなどは、サプリ併用時や妊娠中に摂りすぎ注意。<br>
+    妊娠中・持病・服薬中の方や、体調管理が必要な方は医師・管理栄養士にご相談ください。<br>
+    <a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー・免責事項</a>
+  </p>
+</main>
+
+<nav class="tabbar" id="tabbar">
+  <button data-go="home" class="on"><span class="ti">🏠</span>ホーム</button>
+  <button data-go="capture"><span class="ti">📷</span>記録</button>
+  <button data-go="suggest"><span class="ti">🍽</span>提案</button>
+  <button data-go="history"><span class="ti">📅</span>履歴</button>
+  <button data-go="tips"><span class="ti">💡</span>豆知識</button>
+  <button data-go="setup"><span class="ti">⚙️</span>設定</button>
+</nav>
+
+<!-- ===== 初回の医療免責（同意） ===== -->
+<div class="modal-overlay" id="disclaimerModal" hidden>
+  <div class="modal-box">
+    <h2 style="color:var(--red)">⚠️ はじめにお読みください</h2>
+    <p>本アプリのカロリー・栄養素の数値は、AIによる<b>推定値・一般的な目安</b>です。<b>医療機器ではなく</b>、病気の診断・治療・予防を行うものではありません。表示される情報は<b>教育・参考目的</b>で、医師・管理栄養士の助言に代わるものではありません。</p>
+    <p class="warn-text">持病のある方（特に<b>腎臓病・透析中</b>の方、糖尿病・高血圧・脂質異常症・痛風など）、妊娠中・授乳中・服薬中の方は、食事を変える前に必ず主治医・管理栄養士にご相談ください。腎臓病・透析の方は、一般的な健康アドバイス（野菜・果物・水分を増やす等）が当てはまらず、かえって危険な場合があります。</p>
+    <p class="muted">データはこの端末内にのみ保存されます。詳しくは <a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー・免責事項</a> をご覧ください。</p>
+    <button class="btn full" id="ackDisclaimerBtn">理解しました</button>
+  </div>
+</div>
+
+<!-- ===== AIの結果を報告 ===== -->
+<div class="modal-overlay" id="reportModal" hidden>
+  <div class="modal-box">
+    <h2>⚠️ AIの結果を報告</h2>
+    <p class="muted">AIの推定に問題（不適切な内容・著しい誤り）があれば教えてください。品質改善に使わせていただきます。</p>
+    <label class="field"><span>種類</span>
+      <select id="reportReason">
+        <option value="栄養・カロリーが実際と大きく違う">栄養・カロリーが実際と大きく違う</option>
+        <option value="料理の認識が間違っている">料理の認識が間違っている</option>
+        <option value="不適切・不快な内容が表示された">不適切・不快な内容が表示された</option>
+        <option value="その他">その他</option>
+      </select>
+    </label>
+    <label class="field"><span>くわしい内容（任意）</span>
+      <textarea id="reportNote" rows="3" placeholder="例：からあげをコロッケと判定した　など"></textarea>
+    </label>
+    <button class="btn full" id="sendReportBtn">報告する</button>
+    <button class="btn gray full" id="closeReportBtn" style="margin-top:8px">閉じる</button>
+    <p class="muted" id="reportHint" style="margin-top:10px;display:none"></p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   写真でカロリー・栄養バランス（ダイエット食事記録）— 単一HTML / localStorage
+   栄養基準: 厚生労働省『日本人の食事摂取基準(2025年版)』＋WHO（塩分・糖類）
+   ========================================================================= */
+"use strict";
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const LS = {
+  get:(k,d)=>{try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){toast('保存容量がいっぱいです。バックアップして古い写真を整理してください');return false;}},
+  del:(k)=>localStorage.removeItem(k)
+};
+const K = {profile:'diet_profile', apikey:'diet_apikey', settings:'diet_settings', meals:'diet_meals', weights:'diet_weights', ack:'diet_ack_v1'};
+// 公開前に連絡先メールを記入（privacy.htmlの「連絡先メールアドレス」と同じものに）。空のままでも報告内容のコピー機能は動きます。
+const CONTACT_EMAIL = "takacreator.app@gmail.com";
+
+/* ---------- 栄養基準（検証済み定数） ---------- */
+// 推定エネルギー必要量 kcal/日 [低い, ふつう, 高い]（食事摂取基準2025・参考表）
+const EER = {
+  male:  {'18-29':[2250,2600,3000],'30-49':[2350,2750,3150],'50-64':[2250,2650,3000],'65-74':[2100,2350,2650],'75+':[1850,2250,2250]},
+  female:{'18-29':[1700,1950,2250],'30-49':[1750,2050,2350],'50-64':[1700,1950,2250],'65-74':[1650,1850,2050],'75+':[1450,1750,1750]}
+};
+// たんぱく質 目標量(%E)の下限〜上限（年齢で下限が上がる）
+const PROTEIN_PCT = {'18-29':[13,20],'30-49':[13,20],'50-64':[14,20],'65-74':[15,20],'75+':[15,20]};
+// 食物繊維 g/日 以上（2025年版）
+const FIBER = {
+  male:  {'18-29':20,'30-49':22,'50-64':22,'65-74':21,'75+':20},
+  female:{'18-29':18,'30-49':18,'50-64':18,'65-74':18,'75+':17}
+};
+function ageBand(a){a=+a||30; if(a<30)return'18-29'; if(a<50)return'30-49'; if(a<65)return'50-64'; if(a<75)return'65-74'; return'75+';}
+
+// 微量栄養素の1日目安（食事摂取基準2025・成人。AIが推定できる範囲を採用）
+function microTargets(p){
+  const b=ageBand(p.age), m=p.sex==='male';
+  const vA = m ? (b==='18-29'?850: b==='75+'?800:900) : (b==='18-29'||b==='75+'?650:700);
+  const vB1 = m ? (b==='18-29'?1.1:1.2) : 1.1;  // 女性も推奨量(RDA)ベースに統一
+  const ca = m ? (b==='18-29'?800: b==='75+'?700:750) : 650;
+  let fe;
+  if(m){ fe = b==='18-29'?7.0:7.5; }
+  else { fe = (p.menst && (+p.age<55)) ? (b==='18-29'?10.0:10.5) : 6.5; }
+  const k = m?2500:2000;
+  return {
+    potassium_mg:k, calcium_mg:ca, iron_mg:fe,
+    vitamin_a_ug:vA, vitamin_b1_mg:vB1, vitamin_c_mg:100, vitamin_d_ug:9.0
+  };
+}
+// 追跡する栄養素のメタ（種別: limit=上限型 / need=必須型）
+const NUTRIENTS = [
+  {k:'energy_kcal',name:'カロリー',unit:'kcal',type:'energy',dec:0},
+  {k:'protein_g', name:'たんぱく質',unit:'g',type:'protein',dec:0},
+  {k:'fat_g',     name:'脂質',     unit:'g',type:'limit',dec:0},
+  {k:'satfat_g',  name:'飽和脂肪酸（とりすぎ注意）',unit:'g',type:'limit',dec:1},
+  {k:'carb_g',    name:'糖質',     unit:'g',type:'limit',dec:0},
+  {k:'salt_g',    name:'塩分',     unit:'g',type:'limit',dec:1},
+  {k:'fiber_g',   name:'食物繊維', unit:'g',type:'need', dec:0}
+];
+const MICROS = [
+  {k:'iron_mg',     name:'鉄',       unit:'mg',dec:1},
+  {k:'calcium_mg',  name:'カルシウム',unit:'mg',dec:0},
+  {k:'potassium_mg',name:'カリウム', unit:'mg',dec:0},
+  {k:'vitamin_a_ug',name:'ビタミンA',unit:'µg',dec:0},
+  {k:'vitamin_b1_mg',name:'ビタミンB1',unit:'mg',dec:1},
+  {k:'vitamin_c_mg',name:'ビタミンC',unit:'mg',dec:0},
+  {k:'vitamin_d_ug',name:'ビタミンD',unit:'µg',dec:1}
+];
+const ALL_KEYS = ['energy_kcal','protein_g','fat_g','satfat_g','carb_g','salt_g','fiber_g',
+  'potassium_mg','calcium_mg','iron_mg','vitamin_a_ug','vitamin_b1_mg','vitamin_c_mg','vitamin_d_ug'];
+
+function computeTargets(p){
+  const b=ageBand(p.age), act=+p.activity||1;
+  let energy = (EER[p.sex]&&EER[p.sex][b]) ? EER[p.sex][b][act] : 2000;
+  energy += ({lose:-400,mild:-250,keep:0,gain:300})[p.goal] ?? 0;
+  const floor = p.sex==='male'?1500:1200;
+  const clamped = energy<floor;
+  if(clamped) energy=floor;
+  const pr = PROTEIN_PCT[b];
+  const pPct=(pr[0]+20)/2/100, fPct=0.25, cPct=1-(pr[0]+20)/2/100-0.25;
+  const t = {
+    energy_kcal: Math.round(energy),
+    protein_g: Math.round(energy*pPct/4),
+    fat_g: Math.round(energy*fPct/9),
+    satfat_g: Math.round(energy*0.07/9),   // 飽和脂肪酸 7%E以下（厚労省2025）
+    carb_g: Math.round(energy*cPct/4),
+    salt_g: p.lowSalt?6.0:(p.sex==='male'?7.5:6.5),
+    fiber_g: FIBER[p.sex][b],
+    clamped
+  };
+  Object.assign(t, microTargets(p));
+  return t;
+}
+
+/* ---------- 食材・献立アドバイス辞書 ---------- */
+const SHORT_FOODS = {
+  protein_g:{label:'たんぱく質',foods:'赤身肉・鶏むね/ささみ・魚・卵・豆腐・納豆',tip:'手のひら1枚分でおよそ20g'},
+  fiber_g:{label:'食物繊維',foods:'きのこ・海藻（わかめ/ひじき）・根菜（ごぼう/れんこん）・豆類・もち麦ご飯'},
+  iron_mg:{label:'鉄',foods:'レバー・牛赤身・かつお/まぐろ・あさり・小松菜/ほうれん草',tip:'ビタミンC（ピーマン・柑橘）と一緒だと吸収UP。食後すぐの緑茶・コーヒーは控えめに'},
+  calcium_mg:{label:'カルシウム',foods:'牛乳/ヨーグルト/チーズ・しらす/ししゃも・小松菜・厚揚げ'},
+  potassium_mg:{label:'カリウム',foods:'バナナ・さつまいも・ほうれん草・アボカド・海藻/大豆',tip:'塩分が気になる方の食事の参考に'},
+  vitamin_a_ug:{label:'ビタミンA',foods:'レバー・うなぎ・にんじん/かぼちゃ/ほうれん草'},
+  vitamin_b1_mg:{label:'ビタミンB1',foods:'豚肉（ヒレ・もも）・うなぎ・玄米・大豆/枝豆'},
+  vitamin_c_mg:{label:'ビタミンC',foods:'ブロッコリー・ピーマン/パプリカ・キウイ/いちご・じゃがいも/さつまいも'},
+  vitamin_d_ug:{label:'ビタミンD',foods:'鮭・青魚（さんま/いわし）・しらす・きくらげ/干ししいたけ',tip:'適度な日光浴も有効'}
+};
+const OVER_ADVICE = {
+  salt_g:{label:'塩分',msg:'次は減塩を。蒸す・茹でる＋レモン/酢/出汁/薬味で。味噌汁は半量、漬物・加工肉・麺のつゆは控えめに。'},
+  fat_g:{label:'脂質',msg:'次は揚げ物・炒め物を避け、和食の蒸し料理や煮物へ。白身魚の酒蒸し・湯豆腐・おひたし中心に。'},
+  satfat_g:{label:'飽和脂肪酸',msg:'バター・肉の脂身・揚げ物・加工肉の脂（飽和脂肪酸）が多め。次はオリーブ油・米油・青魚・ナッツなど「良い脂」に置き換え、蒸す・茹でる調理に。'},
+  carb_g:{label:'糖質',msg:'次は主食（ご飯・麺・パン）を半量にし、たんぱく質＋野菜を増やして。豆腐・卵・鶏むね・葉物が◎。'},
+  protein_g:{label:'たんぱく質',msg:'たんぱく質はやや多め。腎臓に不安があれば次は控えめに、水分は多めに。'}
+};
+const MENU_TEMPLATES = {
+  fat_g:{title:'脂質ひかえめ和定食',aim:'脂質を抑える',menu:'もち麦ご飯（小盛）／白身魚の酒蒸し or 蒸し鶏／ほうれん草のおひたし／わかめの味噌汁（薄味）'},
+  satfat_g:{title:'良い脂に置き換え定食',aim:'飽和脂肪（悪い脂）を抑える',menu:'青魚の塩焼き or 刺身／蒸し鶏／温野菜＋オリーブ油 or 米油少々／湯豆腐'},
+  salt_g:{title:'減塩あっさり定食',aim:'塩分を抑える',menu:'ご飯／焼き魚（塩なし・大根おろし＋すだち）／温野菜＋ごま／汁物はなし or 出汁のみ'},
+  carb_g:{title:'糖質オフおかず中心',aim:'糖質を抑える',menu:'豚しゃぶ（ポン酢少量）／冷奴・きのこソテー（油少なめ）／葉物サラダ／主食は控えめ'},
+  protein_g:{title:'高たんぱく定食',aim:'たんぱく質を補う',menu:'鯖の塩焼き（塩控えめ）or 鶏むねソテー／冷奴＋納豆／卵料理'},
+  iron_mg:{title:'鉄を補う献立',aim:'鉄を補う',menu:'レバニラ炒め or かつおのたたき／ほうれん草と油揚げの煮浸し／あさりの酒蒸し'},
+  fiber_g:{title:'食物繊維たっぷり',aim:'食物繊維を補う',menu:'きんぴらごぼう／ひじきの煮物／なめこと豆腐の味噌汁／もち麦ご飯'},
+  calcium_mg:{title:'カルシウム補給',aim:'カルシウムを補う',menu:'厚揚げと小松菜の煮浸し／しらすおろし／ヨーグルト'}
+};
+
+/* ---------- 持病・生活習慣病別の食事アドバイス（一般的な目安。診療の代わりではない） ---------- */
+const CONDITION_ADVICE = {
+  dyslipidemia:{icon:'🩸',label:'脂質異常症（コレステロール・中性脂肪が高い）',tips:[
+    '飽和脂肪酸・トランス脂肪酸を減らす（肉の脂身・バター・揚げ物・菓子パン・加工肉）',
+    '青魚（EPA/DHA）・食物繊維（野菜・海藻・きのこ・大豆）・オリーブ油/米油に置き換え',
+    '中性脂肪が高い人は特に お酒・甘いもの・果物のとりすぎ・糖質を控えめに']},
+  diabetes:{icon:'🍚',label:'糖尿病・血糖が高い',tips:[
+    '主食（ご飯・麺・パン）は適量に。甘い飲み物・ジュース・菓子は避ける',
+    '食べる順番は「野菜・たんぱく質 → 主食」、ゆっくりよく噛んで血糖の急上昇を抑える',
+    '欠食・どか食いを避け規則正しく3食。食物繊維をしっかり',
+    '薬・インスリンを使う人は低血糖に注意。指示されたエネルギー量を守る']},
+  fattyliver:{icon:'🩺',label:'脂肪肝',tips:[
+    'お酒と、糖質・果糖（甘い飲み物・お菓子・果物のとりすぎ）を減らす',
+    '食べ過ぎ・早食いを避ける。体重を数%落とすだけでも改善しやすい',
+    'たんぱく質・食物繊維・青魚を中心に']},
+  gout:{icon:'🦶',label:'痛風・尿酸値が高い（高尿酸血症）',tips:[
+    'プリン体の多い食品を控える（レバー・白子・干物・えび/かに・魚卵・肉や魚の濃いだし）',
+    'お酒（特にビール）を控える。果糖（清涼飲料・果物のとりすぎ）も尿酸を上げる',
+    '水分をしっかりとって尿酸を出す。乳製品・野菜は◎',
+    '※腎臓病もある場合は水分・食品の制限が違うので主治医に確認']},
+  hypertension:{icon:'🧂',label:'高血圧',tips:[
+    '減塩が最優先（1日6g未満が目標）。麺の汁を残す・漬物/練り物/加工肉を控える',
+    'カリウム（野菜・果物・海藻・大豆）で余分な塩を出す',
+    '適正体重を保ち、お酒は控えめに',
+    '※腎臓病もある場合はカリウム制限が必要なことがあるので主治医に確認']},
+  kidney:{icon:'⚠️',label:'腎臓病・透析を受けている',danger:true,tips:[
+    'この病気の食事管理はとても個別的です。<b>必ず主治医・管理栄養士の指示を最優先に</b>',
+    '一般に たんぱく質・塩分・カリウム・リン・水分 の制限が必要なことが多い',
+    '⚠ このアプリの一般アドバイス（野菜・果物でカリウムを増やす／水をたくさん飲む 等）は、腎臓病・透析では<b>逆効果・危険</b>になることがあります',
+    'カリウム…生野菜・果物・芋・海藻／リン…乳製品・加工食品・練り物・干物。指示された量を守って']}
+};
+function renderConditions(){
+  const p=getProfile()||{}; const cs=Array.isArray(p.conditions)?p.conditions:[];
+  const card=$('#condCard'), body=$('#condBody');
+  if(!card||!body) return;
+  if(!cs.length){ card.style.display='none'; body.innerHTML=''; return; }
+  let h='';
+  cs.forEach(k=>{ const c=CONDITION_ADVICE[k]; if(!c) return;
+    h += `<div class="sug-card${c.danger?' warn':''}"><h3>${c.icon} ${c.label}</h3>
+      <div class="foods">${c.tips.map(t=>'・'+t).join('<br>')}</div></div>`;
+  });
+  h += `<p class="muted" style="font-size:.74rem;margin-top:4px;line-height:1.5">※一般的な目安です。病状・服薬により適切な食事は異なります。必ず医師・管理栄養士の指示を優先してください。</p>`;
+  body.innerHTML=h; card.style.display='block';
+}
+
+/* ---------- 手入力用 簡易食品データ（100gあたり / [1食の目安g, kcal, たんぱく質, 脂質, 炭水化物(糖質), 食塩相当量, 食物繊維]） ---------- */
+const FOOD_DB = {
+  // ご飯もの・丼・寿司
+  '白米ごはん':[150,156,2.5,0.3,37.1,0,1.5,0.1], '玄米ごはん':[150,152,2.8,1,35.6,0,1.4,0.3], '赤飯':[150,190,4.3,0.6,41.9,0.2,1.6,0.2],
+  'チャーハン':[250,195,4.7,7,28,1,0.8,2.3], 'オムライス':[300,165,4.5,6.5,22,1,0.8,2.1], 'カレーライス':[350,130,3.2,4.5,19,0.9,1.2,1.5],
+  'ハヤシライス':[350,125,3,4.3,18.3,0.8,0.9,1.4], '牛丼':[350,160,6,5.5,21,1.1,0.6,2.3], '親子丼':[350,135,7,3.5,18.5,1,0.5,1.1],
+  'カツ丼':[400,185,7.5,7,22.5,1.1,0.7,2.8], '天丼':[380,175,5,5.5,26,1,0.7,1.8], 'うな重':[350,195,8.5,8,22,1,0.4,2.6],
+  '海鮮丼':[350,135,8,2,21,0.8,0.4,0.4], '鉄火丼':[350,140,9,1.5,22,0.8,0.4,0.5], '豚丼':[350,170,7,6,21,1,0.5,2.5],
+  '中華丼':[400,110,4.5,3.5,15.5,1,0.8,1.2], 'そぼろ丼':[350,150,7,4.5,20,1,0.6,1.5], 'にぎり寿司':[200,145,7,1.5,25,0.8,0.3,0.3],
+  '巻き寿司':[180,150,4.5,2,28.5,0.8,0.8,0.4], 'いなり寿司':[150,190,5,5.5,29.5,0.9,1,1.2], 'ちらし寿司':[300,150,5.5,2.5,27,0.9,0.7,0.6],
+  'おにぎり':[110,170,3,0.5,37,0.6,0.5,0.2], '鮭おにぎり':[120,175,4.5,1,36,0.7,0.5,0.2], '梅干しおにぎり':[110,165,3,0.4,36,0.9,0.6,0.1],
+  'おこわ':[150,195,4,0.6,43,0.3,1.2,0.2], 'おかゆ':[250,71,1.1,0.1,15.7,0,0.1,0], '雑炊':[300,75,3,1,13,0.8,0.4,0.3],
+  'ビビンバ':[350,135,5,4.5,18,0.9,1.3,1.5], 'ナシゴレン':[300,170,4.5,5.5,25.5,1,0.9,1.8], 'パエリア':[300,160,6,4.5,23.5,0.9,0.8,1.5],
+  'リゾット':[300,145,4.5,4,22,0.9,0.5,1.3], 'ガパオライス':[350,165,6.5,6,20.5,1,0.9,2], 'ジャンバラヤ':[300,155,5.5,4.5,22.5,1,0.8,1.5],
+  // 麺類
+  'かけうどん':[450,61,1.8,0.3,12.8,1,0.8,0.1], 'ざるうどん':[350,104,2.8,0.5,22,0.8,1,0.2], 'きつねうどん':[480,76,3,1.8,12,1.1,0.9,0.6],
+  '肉うどん':[480,88,4,2.5,12.5,1.2,0.8,0.8], 'カレーうどん':[500,93,3.5,2.8,13.5,1.3,1,0.9], '鍋焼きうどん':[550,80,4,1.5,12.5,1.2,1,0.5],
+  '焼きうどん':[350,142,4.5,4,22,1.3,1.5,1.3], 'ぶっかけうどん':[380,109,3,0.6,23,1,1,0.2], 'ざるそば':[350,118,5,0.7,23,0.9,2,0.2],
+  'かけそば':[450,66,2.8,0.5,12.5,1,1.3,0.2], '天ぷらそば':[480,95,4,3,13,1.1,1.4,1.2], 'きつねそば':[470,81,3.8,2,12,1.1,1.4,0.7],
+  '鴨南蛮そば':[480,91,5,2.8,11.5,1.2,1.3,0.9], 'とろろそば':[450,87,3.5,0.6,17,1,1.5,0.2], '醤油ラーメン':[600,80,3.5,2,12,1.1,0.8,0.7],
+  '味噌ラーメン':[650,94,4,3.5,11.5,1.2,1,1.2], '塩ラーメン':[600,75,3.3,1.8,11.5,1.1,0.7,0.6], '豚骨ラーメン':[650,107,4.5,5,11,1.2,0.8,2.1],
+  'つけ麺':[500,166,6.5,4,26,1.3,1.2,1.3], 'チャーシュー麺':[650,106,6,4.5,10.5,1.2,0.8,1.5], '冷やし中華':[400,134,5.5,3.5,20,1.2,1.3,1.2],
+  'タンメン':[650,84,3.8,2.8,11,1.1,1.5,0.9], '担々麺':[600,127,5,7,11,1.3,1.2,2.3], 'ソース焼きそば':[350,154,4,5.5,22,1.4,1.8,1.8],
+  '塩焼きそば':[350,148,4.2,5.5,20.5,1.3,1.5,1.8], 'あんかけ焼きそば':[450,140,4.5,5.5,18,1.2,1.6,1.8], 'そうめん':[350,114,3,0.4,24.5,1,0.9,0.1],
+  'にゅうめん':[450,60,1.8,0.3,12.5,1,0.7,0.1], '冷麦':[350,113,2.9,0.4,24.5,1,0.9,0.1], 'ちゃんぽん':[650,100,4.5,4,11.5,1.2,1.4,1.3],
+  '焼きそばパン':[150,235,6,7,37,1.3,2.2,2.3], '皿うどん':[400,176,5,8,21,1.3,1.5,2.6],
+  // 和食 主菜・副菜
+  '焼き鮭（塩鮭）':[80,183,22.4,9.7,0.1,1.8,0,2.1], '焼きサバ':[90,237,20,16.8,0.3,0.4,0,3.7], 'サンマの塩焼き':[100,287,18.1,23.6,0.1,0.4,0,5.2],
+  'ブリの照り焼き':[100,238,18.5,14,7.5,1.5,0.1,3.1], 'ホッケの開き焼き':[120,161,20.6,8.3,0.1,1.8,0,1.8], 'アジの干物':[70,168,20.2,8.8,0.1,1.7,0,1.9],
+  '鶏の照り焼き':[120,195,17,11,6.5,1.4,0.1,3.3], '鶏の唐揚げ':[100,290,16,18,15,1.2,0.5,7.2], '天ぷら（盛り合わせ）':[120,270,9,17,20,0.8,1.5,6.8],
+  'とんかつ':[130,344,17,24,13,0.9,0.8,7.9], 'エビフライ':[90,260,15,15,17,1,0.8,3.3], 'コロッケ':[80,230,5.3,12.6,24,1,1.8,5],
+  // フライ・揚げ物（写真では中身を判別しにくいので手入力で選択）
+  'アジフライ':[100,255,14,16,13,0.8,0.7,2], 'イワシフライ':[90,275,15,18,12,0.8,0.6,2.4], '白身魚フライ':[100,240,12,14,16,0.8,0.6,1.8],
+  'カキフライ':[100,250,7,14,21,1,1,1.6], 'イカフライ':[90,225,12,11,20,0.9,0.8,1.2], 'ホタテフライ':[90,220,10,11,19,0.9,0.6,1.4],
+  'メンチカツ':[100,280,11,19,16,1,1,5.5], '串カツ':[100,280,12,19,15,0.9,0.8,5], 'チキンカツ':[120,250,18,13,14,0.9,0.6,2.8],
+  'ささみフライ':[100,235,19,11,13,0.9,0.5,2.3], 'ハムカツ':[80,290,8,20,18,1.3,0.8,4.5], 'カニクリームコロッケ':[80,250,5,15,22,1,0.8,4],
+  'かき揚げ':[80,280,5,18,24,0.6,1.5,1.5], '野菜の天ぷら':[80,210,3,13,20,0.3,2,1.3], 'ちくわの磯辺揚げ':[80,225,9,12,20,1.5,0.6,1.2],
+  '揚げ出し豆腐':[120,150,7,10,7,0.9,0.7,1.5], 'フライ盛り合わせ':[150,275,13,17,16,1,0.9,2.8], 'アジの南蛮漬け':[100,200,13,11,12,1.2,0.6,1.5],
+  '肉じゃが':[200,110,4.5,3.8,14,1,1.6,1.3], '筑前煮':[180,105,5,3.5,13,1.1,2.5,1.2], 'カボチャの煮物':[120,95,1.8,0.3,21.5,0.8,3,0.1],
+  '切り干し大根の煮物':[80,95,2.5,3.5,14,1.2,3.5,1.2], 'ひじきの煮物':[80,100,3,4.5,12,1.3,3.5,0.7], 'きんぴらごぼう':[70,120,2,5.5,16,1.2,3.6,1.8],
+  'ほうれん草のおひたし':[80,28,2.8,0.4,4,0.9,2.5,0.1], '冷奴':[150,62,5.5,3.5,2,0.5,0.5,1.2], '枝豆':[80,125,11.5,6.1,8.6,0.5,5,1],
+  'だし巻き卵':[80,130,10,8.5,3,1,0,2.5], '茶碗蒸し':[120,60,6,2.8,2.5,0.9,0.2,0.9], 'みそ汁':[200,35,2.5,1.2,3.8,1,1,0.4],
+  '豚汁':[220,75,4,4,6,1,1.5,1.7], 'すまし汁':[180,18,1.8,0.3,2.2,0.9,0.3,0.1], 'ぬか漬け（きゅうり）':[40,28,1.5,0.2,5.5,3.8,1.8,0.1],
+  '白菜の浅漬け':[50,18,1.2,0.1,3.5,2.3,1.5,0], '梅干し':[15,33,0.9,0.2,7.5,18,2.5,0.1], 'たくあん':[30,43,0.6,0.1,10,3.3,3.5,0],
+  'すき焼き':[250,175,11,11,8,1.2,1.2,4.6], '寄せ鍋':[300,70,7.5,2.5,4.5,1,1.3,0.8], '湯豆腐':[250,58,5,3.2,2,0.6,0.6,0.5],
+  // 中華
+  '餃子(焼き餃子)':[200,197,7,10,19,1.3,1.4,3.3], '水餃子':[200,160,7.2,6.5,18,1.1,1.3,2.1], '小籠包':[150,215,8.5,11,20,1,0.9,3.6],
+  '麻婆豆腐':[250,118,7.5,7.8,4.5,1.5,0.9,1.2], '酢豚':[250,160,7,8.5,14,1.2,1,3.6], 'チャーハン(炒飯)':[300,190,5,6.5,28,1.1,0.8,2.1],
+  '春巻':[120,230,5.5,12.5,24,1,1.5,4.1], '焼売(シュウマイ)':[120,205,9,11,17,1.1,0.8,3.6], 'エビチリ(エビのチリソース)':[200,135,11,6.5,8.5,1.4,0.6,1.4],
+  '回鍋肉(ホイコーロー)':[230,175,7.5,12.5,7,1.5,1.6,4.1], '青椒肉絲(チンジャオロース)':[200,140,8,8.5,7.5,1.4,1.2,3.6], '八宝菜':[250,95,6.5,4.8,6.5,1.3,1.3,1.6],
+  '麻婆茄子':[230,130,4.5,9,7.5,1.4,2,3], '棒棒鶏(バンバンジー)':[180,150,13,9,4,1.2,0.8,2.7], '油淋鶏(ユーリンチー)':[200,245,14,16,11,1.3,0.5,4.8],
+  '天津飯':[300,162,6,6,21,1.2,0.5,2], '五目あんかけ焼きそば':[350,160,5.5,7,18.5,1.3,1.2,2.3], '担々麺(タンタンメン)':[450,127,5,7,11,1.3,0.9,2.3],
+  'ワンタン':[150,110,5,4,13.5,1,0.6,1.3], 'フカヒレスープ':[200,40,3.5,0.8,4.5,0.9,0.1,0.3], '杏仁豆腐':[120,105,2,4.5,14,0.1,0.2,0.7],
+  '中華ちまき':[180,190,4.5,5.5,30,0.9,0.8,1.8], 'えび蒸し餃子(ハーガオ)':[120,160,7,5,21,1,0.6,1.1], '大根餅':[150,140,2.5,5.5,20,0.9,1,1.8],
+  '中華粥':[300,70,3,1.5,11,0.7,0.3,0.5], '麻婆春雨':[230,115,4,5.5,12.5,1.3,0.7,1.8], '北京ダック':[120,290,16,24,3,1.1,0.2,7.9],
+  'チャーシュー(焼豚)':[100,230,17,15,6.5,2.2,0.1,6.3], 'ごま団子':[100,255,4,10.5,36,0.2,1.5,3.5], '中華風コーンスープ':[200,55,1.8,1.8,8,0.8,0.5,0.6],
+  // 韓国
+  '石焼ビビンバ':[450,145,5.8,5,18.5,0.9,1.5,1.7], 'キムチ':[50,27,2.3,0.3,4,2.2,2.7,0.1], 'カクテキ':[50,30,1.5,0.3,6,2,1.8,0.1],
+  'プルコギ':[200,175,13,9,9,1.4,1,3], 'キムチチゲ':[350,65,5.5,3.5,3,1.5,1.2,1.2], 'スンドゥブチゲ':[350,70,5,4,3.5,1.4,0.8,1.3],
+  'テンジャンチゲ':[300,55,4.5,2.5,4,1.6,1.5,0.8], 'チヂミ':[150,195,6,10,20,1,1.2,3.3], '海鮮チヂミ':[180,185,8,9,18,1.1,1,2],
+  'サムギョプサル':[200,300,14,27,0.5,0.6,0.1,8.9], 'チャプチェ':[180,165,4.5,6,23,1.2,1.3,2], 'ナムル':[60,60,2.5,3.5,4.5,0.9,2.5,1.2],
+  'サムゲタン':[500,95,8,5.5,3,0.7,0.3,1.8], 'クッパ':[400,90,4.5,2.5,12.5,1,0.5,0.8], 'ユッケジャン':[400,70,6,3.5,3.5,1.3,1,1.2],
+  '冷麺':[400,120,4.5,1.5,22.5,1.1,1,0.5], 'ビビン麺':[350,145,4.5,2.5,27,1.3,1.2,0.8], 'トッポギ':[250,165,3,2,34,1.2,1,0.7],
+  'キンパ':[200,150,4.5,3.5,25,0.8,1.2,1.2], 'カルビ':[150,290,13.5,25,2.5,1,0.2,10.5], 'タッカルビ':[300,145,12,7.5,7,1.3,1,3.1],
+  'ヤンニョムチキン':[200,250,14,13,19,1.4,0.6,3.9], 'フライドチキン(韓国)':[200,270,16,16,15,1.2,0.5,6.4], 'スンデ':[150,155,7,8,14,1,0.5,2.6],
+  'ホットク':[100,285,4.5,9,47,0.5,1.2,3], 'テンジャン(味噌)':[20,190,12,6,22,11,4.5,2], 'コチュジャン':[15,230,5,1.5,48,7,3.5,0.5],
+  'プデチゲ':[400,95,6,5.5,5,1.5,1,1.8], 'カムジャタン':[450,110,8.5,6,5.5,1.2,1,2], 'ケランチム(茶碗蒸し)':[200,95,8.5,6,1.5,0.8,0,2],
+  'アグチム':[350,90,11,3,4.5,1.5,1.5,1],
+  // イタリアン
+  'ナポリタン':[300,165,4.5,5,25.5,1.2,1.8,1.7], 'ミートソーススパゲッティ':[320,160,6,5.5,21.5,1,1.8,1.8], 'カルボナーラ':[300,210,7.5,10.5,21.5,1.1,1.3,3.5],
+  'ペペロンチーノ':[280,185,5,7,25,1.1,1.6,2.3], 'ボンゴレ':[280,160,6.5,5.5,20.5,1.3,1.3,1.8], 'ペスカトーレ':[320,150,7,4.8,19.5,1.2,1.5,1.6],
+  'ジェノベーゼ':[280,230,6,11.5,25,1.1,1.8,3.8], 'アラビアータ':[300,165,5,5.5,24,1.1,1.8,1.8], 'ペンネアラビアータ':[280,165,5.5,5.5,24,1.1,1.9,1.8],
+  'トマトソースパスタ':[300,160,5,4.5,25.5,1,1.9,1.5], '明太子パスタ':[280,195,7,7.5,24.5,1.5,1.2,1.6], 'たらこパスタ':[280,195,7,7.5,24.5,1.5,1.2,1.6],
+  '和風きのこパスタ':[290,160,5,4.5,24.5,1.2,2.3,0.7], 'マルゲリータピザ':[230,240,10.5,8.5,31,1.3,2,2.8], 'マリナーラピザ':[220,215,7,5.5,35,1.3,2.2,1.8],
+  'クアトロフォルマッジ':[230,290,14,13.5,28.5,1.6,1.8,4.5], 'ミックスピザ':[240,265,11.5,11,30,1.5,2,3.6], 'きのこリゾット':[250,145,4.5,4.5,22,1,1.3,0.7],
+  'ラザニア':[300,170,8,8.5,15.5,1.1,1.3,2.8], 'ニョッキ':[250,170,4,4,29,0.9,1.5,1.3], 'ラビオリ':[250,180,7,6,24,1.1,1.4,2],
+  'ミネストローネ':[250,50,1.8,1.8,7,0.9,1.6,0.6], 'ブルスケッタ':[100,215,5.5,7.5,31,1.1,2,2.5], 'カプレーゼ':[150,160,8,12,4.5,0.9,0.8,4],
+  'ティラミス':[120,290,5.5,19,24.5,0.2,0.5,6.3], 'パンナコッタ':[110,215,3.5,14.5,18,0.1,0,4.8], 'ボロネーゼ':[320,160,6.2,5.8,20.5,1,1.7,1.9],
+  'フェットチーネ':[300,190,6.5,7.5,24,1.1,1.4,2.5], 'シーフードリゾット':[260,145,6,4,20.5,1.2,0.7,1.3],
+  // 洋食・フレンチ
+  'ビーフステーキ':[200,250,26,16,0.3,0.9,0,6.7], 'ハンバーグ':[150,223,13.4,15,8,1,0.7,6.3], 'ビーフシチュー':[300,120,7,6.5,8.5,1,0.8,2.7],
+  'マカロニグラタン':[250,135,5.5,7,12.5,0.9,0.6,2.3], 'ドリア':[300,150,4.8,6,19.5,1,0.5,2], 'ロールキャベツ':[200,95,6,5,6.5,0.9,1.2,1.7],
+  'コーンポタージュ':[200,75,1.8,4,8.5,0.8,0.6,1.3], 'ポトフ':[350,55,3.5,2.5,5,0.8,1.3,0.8], 'ラタトゥイユ':[150,60,1.3,3.8,6,0.6,1.8,1.3],
+  'キッシュ':[150,270,8.5,19,16,1,0.8,6.3], 'ローストチキン':[150,200,24,11,0.5,0.9,0,4.6], 'フライドチキン':[120,290,20,18,12,1.2,0.5,7.2],
+  'ローストビーフ':[100,196,21.7,11.7,0.9,0.8,0,4.9], 'ポークソテー':[150,230,19,16,2,0.9,0.1,6.7], 'クリームシチュー':[300,110,4.5,6,9.5,0.9,0.7,3.6],
+  'オニオングラタンスープ':[250,70,2.8,3,8,1,0.8,1], 'クラムチャウダー':[250,90,4,4.5,8.5,0.9,0.5,1.9], 'ビシソワーズ':[200,80,1.8,4.5,8.5,0.7,0.8,1.5],
+  'エスカルゴ':[80,230,12,18,4,1.3,0.3,5.9], 'フォアグラ':[50,462,8,46,4.5,0.7,0,15.2], 'ムニエル':[150,200,18,12,5,0.9,0.2,4],
+  '舌平目のムニエル':[150,185,19,10,4,0.9,0.1,3.3], 'ブイヤベース':[350,75,8,3,3.5,1,0.5,1], 'コキールサンジャック':[150,140,11,8,6,1,0.4,2.6],
+  'ビーフストロガノフ':[300,150,9,9.5,7,0.9,0.5,4], 'ハッシュドビーフ':[300,135,7.5,7,10.5,1,0.6,2.9], 'カスレ':[350,175,10,9.5,12,1.1,2.5,3.1],
+  'コンソメスープ':[200,12,1.5,0.2,1.2,1,0,0.1], 'パンプキンスープ':[200,85,1.8,4,11,0.7,1.2,1.3], 'チキンソテー':[150,210,20,13,1.5,0.9,0.1,3.9],
+  // アメリカン・ファストフード
+  'ハンバーガー':[110,250,13,12,22,1.2,1.5,4], 'チーズバーガー':[120,270,14.5,14,21,1.4,1.4,8.4], 'ダブルチーズバーガー':[165,310,19,18,18,1.6,1.2,10.8],
+  'ベーコンチーズバーガー':[175,305,17,18,18,1.7,1.2,10.8], 'フライドポテト':[135,312,3.4,15,41,0.6,3.8,6], 'チキンナゲット':[100,297,15,19,16,1.2,1,5.7],
+  'ホットドッグ':[110,270,10.5,15.5,22,1.5,1,6.5], 'チリドッグ':[140,260,11,14.5,21,1.4,1.5,4.8], 'フィッシュバーガー':[140,290,12,15,27,1.3,1.2,5],
+  'チキンバーガー':[155,265,15,12.5,24,1.3,1.4,3.8], 'パンケーキ':[150,227,6.4,9,30,0.9,1.1,3.6], 'ワッフル':[80,291,7.9,14,33,1.1,1.2,4.6],
+  'フレンチトースト':[130,229,7.7,10.8,25,0.8,1,3.6], 'ドーナツ':[60,404,5,22,47,0.7,1.5,8.8], 'オニオンリング':[85,330,4.5,18.5,37,1,2,6.1],
+  'チーズピザ':[110,266,11,10,33,1.3,2.3,6], 'ペパロニピザ':[110,298,13,13,31,1.5,2.2,4.3], 'ミルクシェイク':[300,120,3.2,3.2,20,0.2,0.2,1.1],
+  'コーラ':[350,42,0,0,10.6,0,0,0], 'フライドフィッシュ':[100,232,14,12,17,1,0.7,4.8], 'コーンドッグ':[100,290,10,15,28,1.2,1,5],
+  'ブリトー':[220,215,8.5,8,27,1.1,2.5,1.8], 'タコス':[100,226,9,12,20,1,3,2.6], 'ナチョス':[120,343,8,19,36,1.2,2.8,6.3],
+  'BBQリブ':[200,292,21,21,5,1.4,0.3,6.9], 'バッファローウィング':[120,270,17,20,4,1.6,0.4,6.6], 'マカロニチーズ':[200,195,7.5,9,20,1,1,5.4],
+  'コールスロー':[100,152,1.3,11,13,0.5,1.8,3.6], 'ベーグル':[100,250,10,1.5,48,1.1,2.1,0.5], 'マフィン':[110,377,6,17,50,0.7,1.5,5.6],
+  // インド
+  'バターチキンカレー':[250,175,9.5,12.5,6.5,0.9,1,7.5], 'チキンカレー':[250,140,11,8.5,5,0.9,1.2,2.5], 'キーマカレー':[200,190,11.5,13,6.5,1,1.5,4.3],
+  'マトンカレー':[250,175,12,11.5,5.5,1,1.2,4.8], 'ダルカレー':[200,115,6,4.5,13,0.8,4,1.5], 'チャナマサラ':[200,135,6.5,5.5,15.5,0.9,5,1.8],
+  'パラックパニール':[200,165,7.5,12.5,5.5,0.9,2,4.1], 'パニールマカニ':[200,210,8.5,16,7.5,0.9,1.2,3.5], 'アルゴビ':[180,105,3,6.5,9.5,0.7,3,2.1],
+  'フィッシュカレー':[250,130,12,7.5,4,0.9,1,2.5], 'エビカレー':[250,135,11,8.5,4,1,1,1.9], 'ベジタブルカレー':[200,95,2.5,5,11,0.8,3,1.7],
+  'タンドリーチキン':[150,165,24,7,1.5,1.2,0.3,2.1], 'チキンティッカ':[150,175,25,7.5,2,1.2,0.3,2.2], 'チキンティッカマサラ':[250,160,11,11,4.5,1,1,3.3],
+  'ナン':[90,290,8.5,6,50,1,2.2,2], 'ガーリックナン':[95,300,8.5,7.5,49,1.1,2.2,2.5], 'チャパティ':[45,250,8.5,4,46,0.6,6,1.3],
+  'ロティ':[45,265,9,5,46,0.5,6.5,1.7], 'プーリ':[50,350,7.5,18,40,0.6,3,5.9], 'パラタ':[80,325,7,15,42,0.8,3.5,5],
+  'チキンビリヤニ':[300,185,8,7,22,0.9,1.2,2.1], 'マトンビリヤニ':[300,200,8.5,9,21,1,1.2,3.8], 'ベジビリヤニ':[300,165,4,5.5,25,0.8,1.8,1.8],
+  'サモサ':[60,290,5,17,29,0.9,2.5,5.6], 'パコラ':[80,275,6.5,15,28,0.8,4,5], 'ドーサ':[120,170,4,5,27,0.6,1.5,1.7],
+  'イドゥリ':[100,130,4.5,0.8,26,0.4,1.2,0.3], 'サンバル':[150,85,4,3,11,0.9,3.5,1], 'ラッシー':[250,90,3,3,13,0.1,0,1],
+  'マンゴーラッシー':[250,105,2.5,2.5,18,0.1,0.5,0.8], 'グラブジャムン':[80,340,5,13,50,0.2,0.5,4.3], 'チャイ':[200,65,2,2.5,8.5,0.1,0,0.8],
+  // タイ・東南アジア
+  'パッタイ':[350,175,6.5,6,24,1.1,1.5,2], 'グリーンカレー':[250,120,5,8.5,6.5,1.1,1.5,2.8], 'レッドカレー':[250,115,5,8,6,1.1,1.4,2.6],
+  'マッサマンカレー':[250,150,5.5,10,9.5,1,1.8,3.3], 'トムヤムクン':[300,50,4,2,4,1.3,0.6,0.7], 'カオマンガイ':[350,180,8,6.5,22.5,0.9,0.5,2.1],
+  'ソムタム':[150,65,2.5,1.5,11,1.4,2.5,0.5], 'カオパッド':[350,185,5.5,6.5,26,1,1,2.1], 'フォー':[400,85,5,1.5,13,1.1,0.6,0.5],
+  '生春巻き':[120,110,4.5,1.5,20,0.6,1.2,0.5], 'バインミー':[200,230,8.5,8,31,1.2,1.8,2.6], 'バインセオ':[200,195,6,11,18,0.9,1.3,3.6],
+  'ブンチャー':[350,150,8,5.5,17,1.2,1,1.8], '揚げ春巻き':[100,230,6,12,24,0.9,1.5,4.8], 'ミーゴレン':[300,200,6,8,26,1.2,1.5,2.6],
+  'サテ':[120,225,18,14,6,1.3,0.8,4.6], 'ガドガド':[250,130,5.5,8.5,9,0.9,3,2.8], 'ルンダン':[200,195,15,13.5,3.5,1.2,1,4.5],
+  'ラクサ':[400,135,5.5,7.5,11.5,1.3,1.2,2.5], 'ナシレマ':[300,215,5,9.5,28,1,1.5,3.1], 'チキンライス（海南鶏飯）':[350,185,8.5,6,24,0.9,0.5,1.8],
+  'カオソーイ':[350,160,6,8.5,15,1.2,1,2.8], 'ヤムウンセン':[150,90,4,2,14,1.4,1,0.7], 'パパイヤサラダ':[150,60,2,1,12,1.3,2.5,0.2],
+  'トムカーガイ':[300,105,5,7.5,4.5,1.2,0.8,2.5], 'エビのすり身揚げ（トートマン）':[120,210,12,12,13,1.1,0.8,2.6], 'カオニャオマムアン':[200,195,3,6,33,0.2,1.5,2],
+  'チェー':[200,135,2.5,3.5,24,0.1,1.8,1.2], '汁なしフォー':[350,160,7,5,21,1.1,1,1.7],
+  // メキシコ・中南米
+  'ソフトタコス':[160,205,9,8.5,23,1,2.2,1.9], 'エンチラーダ':[200,175,8,8.5,17,1.1,2.5,2.8], 'ケサディーヤ':[160,290,12,15,27,1.2,2,5],
+  'ファヒータ':[220,175,11,7.5,16,0.9,2.2,2.5], 'タマレス':[120,215,5.5,9,28,1,3,3], 'トルティーヤ（コーン）':[30,218,5.7,2.9,44,0.4,6.3,1],
+  'トルティーヤ（小麦）':[40,310,8.2,7.5,51,1.3,3,2.5], 'グアカモレ':[80,155,2,14,8,0.6,6,4.6], 'サルサ（メキシカン）':[50,35,1.5,0.2,7,1.2,1.8,0.1],
+  'ワカモレディップ':[60,150,2,13.5,7.5,0.7,5.5,4.5], 'チリコンカン':[250,135,8,5.5,13,0.9,4,1.8], 'リフライドビーンズ':[120,115,6.5,3,15.5,1,5,1.2],
+  'メキシカンライス':[150,160,3,3.5,29,0.8,1.5,1.2], 'トスターダ':[120,250,9,12,27,1,3.5,4], 'チミチャンガ':[230,290,9.5,16,27,1.1,2.5,5.3],
+  'タキート':[100,280,8.5,15,28,1,2.5,5], 'ファヒータ風チキン':[200,160,15,7,8,0.9,1.5,2.1], 'エローテ（焼きトウモロコシ）':[150,160,4.5,7,21,0.8,2.8,2.3],
+  'ポソレ':[300,85,6,3,9,0.9,1.8,1], 'チラキレス':[220,190,7,9.5,20,1,2.8,3.1], 'ウエボス・ランチェロス':[220,165,8.5,10,11,1,2.5,3.3],
+  'モレソース（鶏肉）':[250,150,11,8.5,8,1,2,2.5], 'エンパナーダ':[120,290,8,16,28,1,1.8,5.3], 'アロス・コン・ポーヨ':[300,165,9,5.5,20,0.9,1.2,1.8],
+  'セビーチェ':[150,85,13,1.5,5,1.1,0.8,0.5], 'ピコ・デ・ガヨ':[60,30,1.2,0.3,6,0.7,1.5,0.1], 'フラン（プリン）':[120,145,4.5,4,22,0.2,0,1.3],
+  'チュロス':[80,360,4.5,18,45,0.6,1.5,5.9], 'ナチョチーズソース':[60,280,7,22,12,2,0.5,13.2], 'カルニータス':[150,230,18,16,2,1,0,5.3],
+  // 中東・地中海
+  'フムス':[60,177,4.9,8.6,20.1,1.2,6,2.8], 'ファラフェル':[85,333,13.3,17.8,31.8,1,4.9,5.9], 'クスクス':[150,112,3.8,0.2,23.2,0.2,1.4,0.1],
+  'タブレ':[120,120,2.5,6.5,13.8,0.6,3,2.1], 'ババガヌーシュ':[60,130,2.8,10.5,7.5,1,3.5,3.5], 'ケバブ':[150,215,18,14.5,3,1.3,0.3,4.8],
+  'シシケバブ':[150,195,20.5,11.5,2,1.2,0.2,3.8], 'ドネルケバブ':[200,222,15,13,12,1.4,1,4.3], 'シャワルマ':[200,235,16.5,13.5,12.5,1.4,1.2,4.5],
+  'ピタパン':[60,275,9.1,1.2,55.7,1.1,2.2,0.4], 'ドルマ':[120,175,3,9.5,19.5,1,2.5,3.1], 'ケフタ':[120,240,17,17,4,1.2,0.5,5.6],
+  'バクラヴァ':[60,428,6.5,24,48,0.3,2,7.9], 'ピラフ':[180,165,3.2,4.5,28,0.8,0.8,1.5], 'レンズ豆スープ':[250,75,4.5,2,10.5,0.9,2.8,0.7],
+  'ムサカ':[250,150,7,9.5,9,0.9,1.8,3.1], 'ギリシャサラダ':[200,105,3,8.5,4.5,0.9,1.8,1.4], 'スブラキ':[150,190,21,10.5,2,1.1,0.2,3.5],
+  'ザジキ':[50,95,3.5,7.5,3.5,0.8,0.3,2.5], 'タジン':[250,120,8.5,6,8,1,2,2], 'ケバブサンド':[250,215,12,10,20,1.3,1.5,3.3],
+  'キベ':[100,290,12,17,22,1,2,5.6], 'マンサフ':[300,175,11,7.5,16,0.9,0.7,2.5], 'フムスサンド':[200,210,7.5,7,30,1.1,4,2.3],
+  'トルコ風ヨーグルト':[150,95,5.5,6,4.5,0.2,0,2], 'ボレッキ':[120,290,8.5,16,28,1.2,1.5,5.3], 'ラフマジュン':[150,230,10,8.5,28,1.2,2,2.8],
+  'メネメン':[200,115,6.5,8,4.5,0.9,1.2,2.6], 'クナファ':[100,380,7,20,43,0.4,1,6.6], 'ハリッサチキン':[180,185,22,9.5,2.5,1.1,0.5,2.9],
+  'アイラン':[250,40,2.8,1.8,3.2,0.5,0,0.6], 'ファットゥーシュ':[150,130,2.5,8,12.5,0.7,2.5,2.6],
+  // パン・朝食
+  '食パン':[60,248,8.9,4.1,46.4,1.2,4.2,1.4], 'トースト(バター)':[65,300,8.5,10,44,1.3,3.8,6], 'クロワッサン':[45,406,7.3,20.4,51.2,1,1.9,8.2],
+  'ロールパン':[30,309,10.1,9,48.6,1.2,2,3], 'フランスパン':[50,289,9.4,1.3,57.5,1.6,2.7,0.4], 'ライ麦パン':[60,252,8.4,2.2,52.7,1.2,5.6,0.7],
+  '全粒粉パン':[60,252,13,3.4,43,1.1,6,1.1], 'イングリッシュマフィン':[65,224,8.1,3.6,40.6,1.2,1.2,1.2], 'あんパン':[80,280,6.8,5.3,50.3,0.7,2.5,1.7],
+  'メロンパン':[90,349,8,10.5,56.2,0.5,1.7,3.5], 'カレーパン':[120,302,6.6,18.3,30.7,1.2,1.6,6], 'クリームパン':[90,286,7.9,7.4,48.3,0.6,1.3,4.4],
+  'ホットケーキ(パンケーキ)':[120,253,7.7,5.4,45.3,0.7,1.1,2.2], '目玉焼き':[60,205,12.9,16,0.9,0.6,0,4.8], 'スクランブルエッグ':[100,180,11,14,2,0.8,0,4.6],
+  'ゆで卵':[50,134,12.5,10.4,0.3,0.4,0,3.1], 'オムレツ':[120,175,10.5,13.5,2.5,0.8,0.1,4], '卵焼き':[50,146,10.5,9.2,4.5,1,0,2.8],
+  'ハムサンド':[120,230,9,9.5,27,1.5,1.8,4], '卵サンド':[120,265,9.5,14,24,1.2,1.6,4.2], 'BLTサンド':[150,240,8.5,12,24,1.4,1.8,4],
+  'ツナサンド':[120,255,10,12.5,25,1.3,1.6,4.1], 'カツサンド':[160,320,11,16,33,1.4,1.7,6.4], 'コーンフレーク':[40,380,7.8,1.7,83.6,2.1,2.4,0.6],
+  'グラノーラ':[50,450,8.5,17,68,0.4,7,5.6], 'オートミール':[40,350,13.7,5.7,69.1,0,9.4,1.9], 'ミューズリー':[50,390,10,6.5,72,0.3,8.5,2.1],
+  'パンケーキ(メープルシロップ添え)':[150,280,6,6,50,0.6,1,2.4], 'クロックムッシュ':[140,295,13.5,17,21,1.7,1.2,5.6],
+  // 肉・魚・卵・豆・乳
+  '鶏むね肉（皮なし）':[100,108,23.3,1.9,0.1,0.1,0,0.6], '鶏もも肉（皮なし）':[100,113,19,5,0,0.2,0,1.5], '鶏ささみ':[80,98,23.9,0.8,0.1,0.1,0,0.2],
+  '豚バラ肉':[100,366,14.4,35.4,0.1,0.1,0,14.9], '豚ロース肉':[100,248,19.3,19.2,0.2,0.1,0,8.1], '豚ヒレ肉':[100,118,22.2,3.7,0.3,0.1,0,1.6],
+  '牛もも肉':[100,196,19.5,13.3,0.4,0.1,0,5.6], '牛バラ肉':[100,381,12.8,39.4,0.3,0.1,0,16.5], '牛ひき肉':[100,251,17.1,21.1,0.3,0.2,0,8.9],
+  '鶏ひき肉':[100,171,17.5,12,0,0.1,0,3.6], 'ベーコン':[40,400,12.9,39.1,0.3,2,0,16.4], 'ウインナーソーセージ':[50,319,11.5,30.6,3.3,1.9,0,12.9],
+  '鮭（サケ）':[80,124,22.3,4.1,0.1,0.2,0,0.9], 'まぐろ赤身':[80,115,26.4,1.4,0.1,0.1,0,0.3], 'さば（サバ）':[80,211,20.6,16.8,0.3,0.3,0,3.7],
+  'あじ（アジ）':[80,112,19.7,4.5,0.1,0.3,0,1], 'えび（エビ）':[60,82,18.4,0.6,0.1,0.4,0,0.1], 'いか（イカ）':[80,76,17.9,0.8,0.1,0.5,0,0.2],
+  'ツナ缶（油漬け）':[70,265,17.7,21.7,0.1,0.9,0,7.2], '鶏卵（生）':[50,142,12.2,10.2,0.4,0.4,0,3.1], '納豆':[45,190,16.5,10,12.1,0,6.7,1.6],
+  '木綿豆腐':[150,73,7,4.9,1.5,0,1.1,0.8], '絹ごし豆腐':[150,56,5.3,3.5,2,0,0.9,0.6], '厚揚げ':[100,143,10.7,11.3,0.9,0,0.8,1.8],
+  '油揚げ':[30,377,23.4,34.4,0.4,0,1.3,5.5], '豆乳（無調整）':[200,44,3.6,2,3.1,0,0.2,0.3], '枝豆（ゆで）':[50,118,11.5,6.1,8.9,0,4.6,1],
+  '牛乳':[200,61,3.3,3.8,4.8,0.1,0,1.6], 'プレーンヨーグルト':[100,56,3.6,3,4.9,0.1,0,1], 'プロセスチーズ':[25,313,22.7,26,1.3,2.8,0,15.6],
+  'カマンベールチーズ':[25,291,19.1,24.7,0.9,2,0,14.8], 'モッツァレラチーズ':[30,276,18.4,19.9,4.2,0.2,0,11.9], 'カッテージチーズ':[50,99,13.3,4.5,1.9,1,0,2.7],
+  // 野菜・果物
+  'シーザーサラダ':[150,160,4.5,13,6.5,1,1.5,2.1], 'ポテトサラダ':[120,170,2.5,11,15,1,1.8,1.8], 'グリーンサラダ':[100,20,1.2,0.2,3.8,0,1.8,0],
+  'マッシュポテト':[150,110,2,4.5,15.5,0.6,1.5,1.5], '焼き芋':[150,163,1.4,0.2,39,0,3.5,0], '大学芋':[120,230,1.2,7,40,0.1,2.5,1.1],
+  'ふかし芋（じゃがいも）':[150,76,1.6,0.1,17.6,0,1.3,0], '野菜炒め':[150,85,3,5.5,6.5,1,2.2,0.9], '焼きとうもろこし':[150,99,3.6,1.7,18.6,0,3,0.6],
+  'きのこのソテー':[100,65,3,4.5,4,0.8,3.5,0.7], 'なめこの味噌汁':[180,25,1.8,0.6,3.5,1,1.5,0.1], 'わかめの味噌汁':[180,20,1.5,0.6,2.5,1.1,1.2,0.1],
+  'もずく酢':[80,25,0.6,0.1,5.5,1,1.5,0], 'バナナ':[100,93,1.1,0.2,22.5,0,1.1,0], 'りんご':[150,56,0.2,0.3,14.3,0,1.9,0],
+  'みかん':[80,49,0.7,0.1,12,0,1,0], 'いちご':[75,34,0.9,0.1,7.1,0,1.4,0], 'ぶどう':[100,69,0.4,0.1,17,0,0.5,0],
+  'フルーツヨーグルト':[150,90,3.5,2,15,0.1,0.5,0.7], 'アーモンド':[25,598,20,52,20,0,10.5,6.8], 'くるみ':[25,674,15,69,11.5,0,7.5,9],
+  'カシューナッツ':[25,576,20,48,26.5,0.6,6.7,6.2], 'ミックスナッツ':[25,620,18,55,18,0.2,8,7.2], 'アボカド':[80,176,2.1,17.5,6.2,0,5.6,2.3],
+  // 飲料・お菓子
+  'オレンジジュース（果汁100%）':[200,46,0.8,0.1,11,0,0.2,0], 'カフェオレ':[200,51,2.4,2.6,4.4,0.1,0,0.9], 'ミルクティー':[200,42,1.3,1.4,6.3,0,0,0.5],
+  'スポーツドリンク':[500,21,0,0,5.1,0.1,0,0], 'ビール':[350,40,0.3,0,3.1,0,0,0], '赤ワイン':[120,68,0.2,0,1.5,0,0,0],
+  '日本酒':[180,21,0.4,0,4.9,0,0,0], '焼酎':[90,146,0,0,0,0,0,0], 'ハイボール':[350,52,0,0,0,0,0,0],
+  '梅酒':[60,83,0.1,0,20.7,0,0,0], 'ポテトチップス':[60,541,4.7,35.2,54.7,1,4.2,14.1], 'チョコレート':[50,551,6.9,34.1,55.8,0.2,3.9,13.6],
+  'クッキー':[30,512,5.4,21.9,71.9,0.5,1.5,8.8], 'ショートケーキ':[110,314,4.4,14,43.6,0.2,0.6,5.6], 'チーズケーキ':[100,318,6.6,21.2,24.9,0.5,0.2,12.7],
+  'プリン':[120,116,5.5,5,12.9,0.2,0,1.7], 'アイスクリーム':[100,178,3.9,8,23.2,0.2,0.1,4.8], 'ソフトクリーム':[120,146,3.8,5.6,20.1,0.2,0,3.4],
+  'かき氷（シロップ）':[200,120,0,0,30,0,0,0], '大福':[80,235,4.8,0.5,53,0.1,1.8,0.2], 'どら焼き':[80,292,6.6,3.1,59,0.3,1.5,1],
+  '団子（みたらし）':[90,194,3.2,0.4,44,0.5,0.3,0.1], '羊羹':[60,296,3.6,0.2,71.9,0,3.1,0.1], 'せんべい':[20,373,7.3,1,83.1,1.3,0.6,0.3],
+  'カステラ':[50,312,7.1,5,61.8,0.2,0.5,1.7], 'たい焼き':[120,221,4.5,1.3,47.5,0.2,1.7,0.3], 'ポップコーン':[30,484,10.2,22.8,59.6,1.4,9.3,7.5],
+  'グミ':[40,336,7.5,0.1,76.5,0.1,0,0], 'マカロン':[20,434,6,18,62,0.1,2.5,5.9],
+  // 基本（よく使う）
+  'ご飯（白米）':[150,168,2.5,0.3,37,0,1.5,0.1], '玄米ご飯':[150,165,2.8,1,35,0,1.4,0.3], 'うどん':[250,95,2.6,0.4,21,0.3,1.3,0.1],
+  'そば':[200,130,4.8,1,26,0,2,0.3], 'ラーメン':[450,110,4,3,15,1.2,1,1], 'パスタ・スパゲティ':[250,150,5,0.9,29,0.6,1.7,0.3],
+  'レトルトカレー':[200,120,2.5,7,12,1.2,1,2.3], '寿司':[200,140,9,2,22,1,0.3,0.4], 'お好み焼き':[300,150,7,7,15,1,1.5,2.3],
+  'からあげ':[100,290,16,18,13,1.2,0.3,7.2], '焼き魚（鮭）':[80,180,22,8,0.1,1.2,0,1.8], 'さばの味噌煮':[100,210,16,13,7,1.4,0.3,2.9],
+  '刺身':[100,110,20,3,0.2,0.5,0,0.7], '餃子':[100,210,7,11,20,1,1.2,3.6], '鶏むね肉（蒸し）':[100,110,23,1.5,0,0.2,0,0.4],
+  'ゆで卵・卵':[50,142,12,10,0.4,0.4,0,3], '冷奴・豆腐':[150,72,5,4.5,2,0,0.4,0.7], '味噌汁':[200,40,3,1.5,4,1.2,1,0.5],
+  '野菜サラダ':[100,25,1,2,4,0.3,2,0.3], 'ヨーグルト（無糖）':[100,62,3.6,3,4.9,0.1,0,1], 'チーズ':[20,340,23,26,1.4,2.8,0,15.6],
+  'コーヒー（無糖）':[150,4,0.2,0,0.7,0,0,0], 'オレンジジュース':[200,42,0.7,0.1,10,0,0.2,0], 'ジュース・コーラ（加糖）':[350,46,0,0,11.4,0,0,0],
+  '菓子パン':[90,280,7,8,46,0.6,2,3.2], 'ピザ':[100,270,11,11,30,1.4,2,3.6],
+  // ＋魚介料理
+  'まぐろ赤身（刺身）':[80,115,26.4,1.4,0.1,0.1,0,0.3], 'まぐろ中トロ（刺身）':[80,253,20.1,18,0.1,0.1,0,4], 'サーモン（刺身）':[80,204,20.1,13.5,0.1,0.1,0,3],
+  'ぶり（刺身）':[80,222,21.4,17.6,0.3,0.1,0,3.9], 'たい（刺身）':[80,129,20.6,5.8,0.1,0.1,0,1.3], 'いか（刺身）':[60,76,17.9,0.8,0.1,0.5,0,0.2],
+  'たこ（刺身）':[60,70,16.4,0.7,0.1,0.7,0,0.2], 'ほたて貝柱（刺身）':[60,82,16.9,0.3,3.5,0.3,0,0.1], '甘えび（刺身）':[40,85,19.8,1.5,0.1,0.8,0,0.3],
+  'うに':[30,109,16,4.8,3.3,0.6,0,1.1], 'いくら':[30,252,32.6,15.6,0.2,2.3,0,3.4], 'えび寿司（甘えび）':[40,110,7,0.5,19,0.5,0.2,0.1],
+  '焼きさば':[100,237,25.2,17.1,0.4,0.4,0,3.8], '焼きさんま':[100,281,19.3,24.6,0.4,0.4,0,5.4], 'ほっけ焼き':[120,115,21.4,3.7,0.1,0.6,0,0.8],
+  'あじ焼き':[100,157,25.7,6.4,0.1,0.4,0,1.4], '金目鯛煮付け':[120,175,16.5,8.5,6.5,1.6,0,1.9], 'かれい煮付け':[120,120,17.5,1.5,8,1.5,0,0.5],
+  'ぶり大根':[200,145,9.5,7.5,8.5,1.3,0.7,1.6], 'あさり':[80,27,6,0.3,0.4,2.2,0,0.1], 'しじみ':[40,54,7.5,1.4,4.5,0.4,0,0.3],
+  '牡蠣（かき）':[80,58,6.9,2.2,4.9,1.2,0,0.5], 'はまぐり':[80,35,6.1,0.6,1.8,2,0,0.2], 'えび（ゆで）':[60,82,18.7,0.4,0.1,0.5,0,0.1],
+  'かに（ずわいがに・ゆで）':[80,69,15,0.6,0.1,0.8,0,0.1], 'あじの干物':[80,168,20.2,8.8,0.1,1.7,0,1.9], '海鮮鍋（寄せ鍋）':[350,75,9,2.5,3.5,1.3,0.8,0.6],
+  'あら汁':[200,45,5,2,1.5,1.4,0.3,0.7], 'たらこ':[40,131,24,4.7,0.4,4.6,0,1], '明太子':[40,121,21,3.3,3,5.6,0,0.7],
+  'かまぼこ':[50,93,12,0.9,9.7,2.5,0,0.3], 'ちくわ':[50,119,12.2,2,13.5,2.1,0,0.7], 'はんぺん':[50,94,9.9,1,11.4,1.5,0,0.3],
+  'さつま揚げ':[60,135,12.5,3.7,13.9,1.9,0,1.5], 'うなぎ蒲焼き':[100,285,23,21,3.1,1.3,0,4.6],
+  // ＋郷土料理 東北
+  'きりたんぽ鍋':[500,95,6.5,2.8,11,1.1,1.2,0.9], 'きりたんぽ':[80,168,2.8,0.4,37.5,0,0.6,0.1], 'いも煮（山形・牛肉醤油）':[300,110,5,5.5,9.5,1.2,1.5,0.9],
+  '牛タン焼き':[120,269,15,21,3.5,1.4,0.1,8.8], 'ずんだ餅':[120,196,4.8,1.6,41,0.2,2.2,0.5], 'わんこそば':[300,132,4.8,0.9,26,0.8,1.5,0.3],
+  '盛岡冷麺':[450,140,5,1.5,27,1.3,1,0.5], '盛岡じゃじゃ麺':[350,185,6.5,6,26,1.2,1.4,2], 'はらこ飯':[250,175,8.5,3.5,27,1,0.5,1.2],
+  'せんべい汁':[350,75,4.5,1.8,10,1.1,1,0.6], 'いちご煮（ウニとアワビの吸物）':[250,48,5.5,1,3.5,1.3,0.3,0.3], '玉こんにゃく':[120,18,0.8,0.1,4,1,2.5,0],
+  '横手やきそば':[350,175,5.5,6.5,24,1.2,1.6,2.1], '笹かまぼこ':[40,93,12,0.9,9.5,2.2,0,0.3], 'ひっつみ（すいとん汁）':[350,85,3.8,1.5,14,1,1.2,0.5],
+  'サメの煮付け（モウカザメ）':[120,120,18,4,3,1.3,0.1,1.3], 'ほや（生）':[60,30,5,0.8,0.8,1.5,0,0.3], 'だまこ鍋':[500,98,6,2.5,13,1.1,1,0.8],
+  '納豆汁':[250,70,5.5,3,5.5,1.2,2,0.5], 'けの汁':[250,55,3.5,1.5,7,1.1,2.8,0.5], 'おやき（野沢菜・あんetc平均）':[90,195,4.5,2,39,0.7,2.5,0.7],
+  '芋煮（豚肉味噌・宮城風）':[300,105,4.5,5,10,1.1,1.6,0.8], 'きりたんぽ味噌つけ焼き':[100,195,3.5,2,40,1,0.8,0.7], '牛タンシチュー':[250,165,9,11,7,1.1,0.8,4.6],
+  'くるみ餅':[120,230,4.5,7,37,0.2,1.5,0.9], 'あんかけうどん（稲庭うどん）':[300,135,4.5,0.8,27,1.2,1,0.3], '稲庭うどん（ゆで）':[250,125,3.5,0.5,26,0.4,0.8,0.2],
+  'がんづき（黒糖蒸しパン）':[80,230,4,2.5,48,0.4,1,0.8], 'じゅんさい（生）':[50,5,0.4,0,1,0,1,0], 'ハタハタの塩焼き':[100,113,14,5.5,0.3,1.5,0,1.8],
+  'しょっつる鍋':[400,60,7,2,3,1.5,0.8,0.7], 'きのこ汁（なめこ味噌汁）':[200,35,2.5,0.8,4.5,1.2,1.8,0.1], 'ずんだシェイク':[300,130,3.5,3.5,21,0.1,1.2,1.2],
+  'あさり汁（仙台あら汁）':[200,30,3.5,0.5,2.5,1.3,0.2,0.1], 'いものこ汁':[300,85,4,3,11,1.1,1.5,0.5], '三角油揚げ（定義あぶらあげ）':[80,290,15,24,3.5,1,0.5,3.8],
+  // ＋郷土料理 北海道・関東・甲信越・北陸
+  'ジンギスカン':[200,204,18.5,12.5,4.5,1.6,0.6,5.2], '石狩鍋':[400,78,7,3.5,4.5,1.2,1,1.2], 'ちゃんちゃん焼き':[250,135,12,7,6,1.4,1.3,2.3],
+  'ザンギ':[120,290,15,18,16,1.3,0.5,5.9], '深川めし':[280,150,6.5,2,26,1.1,0.8,0.7], 'もんじゃ焼き':[300,95,4,3.5,11.5,1.3,1,1.2],
+  'すいとん':[350,110,3.5,1.5,21,1,1.2,0.5], 'ほうとう':[450,130,4.5,2,24,1.2,2,0.7], '信州そば':[260,132,4.8,1,26,0.3,2,0.3],
+  'おやき':[100,175,4.5,2.5,33,0.8,2.2,0.8], 'へぎそば':[260,135,5,1,27,0.3,1.8,0.3], 'のっぺい汁':[250,58,2.5,1,9.5,1,1.5,0.3],
+  '治部煮':[200,110,12,2.5,9,1.4,1.2,0.8], 'ます寿司':[180,175,7.5,3,29,0.9,0.4,0.7], '白えびかき揚げ':[80,280,9,17,22,0.8,1.2,3.7],
+  '豚丼（帯広）':[380,220,9,7,30,1.2,0.7,2.9], 'スープカレー':[500,95,5,4.5,8.5,1.2,1.5,1.5], '三平汁':[300,62,6,2,4.5,1.3,1,0.7],
+  'いももち':[100,165,2,3,32,0.6,1.3,0.5], 'わっぱめし':[300,160,7,2.5,27,1,0.8,0.8], '水戸納豆':[50,190,16.5,10,12,0,6.7,1.6],
+  'こんにゃくの味噌田楽':[120,55,2,1,10,1.4,2.5,0.2], '五平餅':[120,205,4,3.5,39,1,1.2,1.2], '野沢菜漬け':[50,17,1.2,0.1,3,2.5,2.5,0],
+  '鯉のうま煮':[120,175,13,7,15,1.6,0.2,2.3], 'なめろう':[80,140,17,5,6,1.5,0.5,1.7], 'くじら汁':[300,70,8,2.5,4,1.4,1.2,0.8],
+  '笹寿司':[120,160,5.5,1.5,31,0.8,0.6,0.3], 'おっきりこみ':[450,120,4,1.5,23,1.2,1.8,0.5], 'こづゆ':[200,45,2.5,0.8,7,1,1,0.3],
+  'ほっけの開き':[150,175,20.5,9.5,0.5,1.8,0,2.1], 'イカ飯':[150,195,9,1.5,36,1.3,0.6,0.3], 'くるみそば':[280,175,6,6,25,1,2.2,0.8],
+  'てんぷらそば（江戸前）':[400,150,5.5,4.5,22,1.2,1.5,1.8],
+  // ＋郷土料理 中部・関西・中国・四国
+  '味噌カツ':[200,248,14,15.5,13,1.4,1.2,6.2], 'ひつまぶし':[350,215,9.5,7,28.5,1,0.5,2.3], '名古屋手羽先':[120,248,18.5,16.5,6,1.6,0.3,5],
+  'たこ焼き':[160,190,7.5,7,24,1,0.8,1.5], '広島風お好み焼き':[350,175,8,7.5,19.5,1.3,1.4,2.5], '串カツ':[150,280,11,18,18,1.1,1,7.2],
+  '湯葉':[50,218,21.8,13.7,4.1,0,0.8,4.5], '柿の葉寿司':[180,165,6.5,2.5,29,1.2,0.6,0.6], 'てこね寿司':[250,175,9,3.5,27,1.1,0.5,0.8],
+  '明石焼き':[200,130,8,6,11,0.8,0.3,2], '出雲そば':[280,135,5.5,1,26,0.8,2,0.3], '岡山ばら寿司':[250,170,6.5,2.5,31,1.1,0.8,0.6],
+  '讃岐うどん':[300,110,3.5,0.6,22.5,0.9,1,0.2], '鯛めし':[280,175,8,3,28,0.9,0.4,0.7], '骨付鶏':[250,235,19,16,2,1.5,0.2,4.8],
+  'かつおのたたき':[120,130,22,3,3.5,1,0.5,1], '祖谷そば':[280,130,5,1,25.5,0.8,2.2,0.3], '天むす':[150,195,5,4,34,0.9,0.6,1.3],
+  'あんかけスパゲッティ':[350,175,6,6.5,23,1.1,1.2,2.1], '台湾ラーメン':[500,90,4.5,3.5,10,1.4,0.7,1.2], 'きしめん':[300,115,4,0.6,23,1,1,0.2],
+  'どて煮':[150,155,11,8,7.5,1.8,0.5,2.6], 'ふなずし':[60,180,16,6,14,4.5,0.2,2], '鯖の棒寿司':[200,215,9,7.5,27,1.2,0.4,1.6],
+  'ばらずし':[250,168,6,2.2,31,1.1,0.8,0.7], '鳥取牛骨ラーメン':[500,85,4,3,10.5,1.3,0.6,1.3], '瓦そば':[300,175,7,5,25,1.2,1.5,1.7],
+  'ふぐ刺し':[80,85,19,0.4,0.5,0.3,0,0.1], '皿鉢料理':[200,145,16,6,5,1.2,0.5,2], 'じゃこ天':[60,130,13,3.5,11,1.8,0.3,1.2],
+  '鳴門金時の天ぷら':[100,205,2.5,8.5,30,0.3,2.3,3.4], 'ままかり酢漬け':[60,165,16,7,8,2,0.2,2.3], 'わかめうどん':[350,95,3.5,0.6,19,1.3,1.8,0.1],
+  'ひしお丼':[280,180,8,4,28,1.4,0.7,1.3],
+  // ＋郷土料理 九州・沖縄
+  '博多ラーメン':[500,140,6,4.5,18.5,1.6,1.2,1.5], 'もつ鍋':[400,95,7,5.5,3.8,1.3,1.5,1.8], '水炊き':[400,85,9.5,3.8,2.5,1,1,1.3],
+  '長崎ちゃんぽん':[600,130,6.5,4,17,1.4,1.3,1.3], 'だんご汁':[350,110,4,1.2,21,1.2,1.8,0.4], 'チキン南蛮':[200,255,14,17,11,1.4,0.6,5.1],
+  '冷や汁':[300,75,5.5,2.8,6.5,1.5,1.2,0.9], '馬刺し':[80,110,20.1,2.5,0.3,0.1,0,0.8], '鶏飯':[350,135,6.5,2,22,1,0.6,0.6],
+  'きびなご':[60,85,18.8,1.4,0.1,0.4,0,0.5], 'ゴーヤチャンプルー':[250,120,7.5,8,4.5,1.1,1.8,2.6], 'ソーキそば':[500,150,6,5,20,1.3,1,1.7],
+  'ラフテー':[120,290,13,24,4.5,1.5,0.1,7.9], '海ぶどう':[50,15,0.5,0.1,3.2,1,0.8,0], 'ジューシー':[200,160,3.5,3,29,0.9,0.8,1],
+  'サーターアンダギー':[50,330,6,13,47,0.3,1.2,4.3], '角煮まんじゅう':[80,250,8,11,29,1,1,3.6], 'だぶ汁':[300,70,3.5,1,11.5,1.1,1.5,0.3],
+  'とんこつ角煮':[120,295,13.5,24.5,5,1.6,0.1,8.1], 'がめ煮（筑前煮）':[200,110,5.5,4,12.5,1.2,2.2,1.3], 'おきゅうと':[80,20,1,0.1,4.5,0.3,3.5,0],
+  'ちゃんぽん皿うどん（細麺）':[300,230,7.5,10,27.5,1.6,1.4,3.3], '白くまアイス':[150,130,2.5,2.5,24.5,0.1,0.5,1], '豆腐よう':[20,190,11,7.5,18,3,1,1.2],
+  '中身汁':[300,75,7,3.5,3,1.2,0.5,1.2], 'イラブー汁':[300,90,12,4,1.5,1,0.3,1.3], 'ミミガー':[80,210,18,15,1,1.4,0,5],
+  'てびち（豚足煮込み）':[150,230,18,17,1.5,1.3,0.1,7.1], 'ふなやき（フーチャンプルー）':[200,150,8,9.5,8.5,1.2,1,3.1], 'きくらげ卵チャンプルー':[200,130,7,9,4,1,2,2.7],
+  '地鶏の炭火焼き':[120,215,24,12.5,1,1.5,0.1,3.8], 'さつまいも（からいも）':[150,130,1.2,0.2,31.5,0,2.2,0], '黒糖':[15,350,1.7,0,89.7,0.1,0,0],
+  // ＋昆虫食・山川の幸
+  'はちのこ甘露煮':[30,239,16.2,7.2,30.2,1.9,0,2.4], 'いなごの佃煮':[25,243,26.3,2,29.6,3.5,0.5,0.7], 'ざざむし佃煮':[20,234,24,5,24,3.2,0,1.7],
+  '蚕のさなぎ佃煮':[25,230,20,11,13,2.5,0,3.6], 'まゆこ(繭蚕の甘露煮)':[25,235,18,9,20,2.3,0,3], 'コオロギの素揚げ':[15,410,58,18,4,1,2,7.2],
+  'わらびのおひたし':[60,21,2.4,0.1,4,0.6,3.6,0], 'ぜんまいのおひたし':[60,29,1.7,0.4,5.5,0.6,3.5,0.1], 'たらの芽の天ぷら':[40,190,4.5,13,14,0.4,3,5.2],
+  'ふきのとうの天ぷら':[40,185,3.5,13.5,13,0.3,3.5,5.4], 'こごみのおひたし':[50,28,3,0.2,5.3,0.5,5.2,0], 'ふきの煮物':[60,35,0.6,0.1,7.8,1,1.3,0],
+  'うどのきんぴら':[50,68,1,3.5,8.5,1.1,1.6,1.2], 'なめこのみそ汁':[150,18,1.4,0.2,3,1,1.8,0], 'まいたけのソテー':[60,62,2.5,4.5,4,0.6,2.8,0.7],
+  'ぶなしめじのバター炒め':[60,70,2.6,5,4.5,0.6,3,3], '松茸の土瓶蒸し':[120,25,2,0.3,4,1,2.5,0.1], 'えのきのなめ茸(味付け)':[30,76,3,0.3,16,4.3,4.1,0.1],
+  'きくらげの酢の物':[40,45,1,0.3,10,0.8,5.5,0.1], '鮎の塩焼き':[80,150,18.3,7.9,0.5,1.2,0,2.6], '岩魚の塩焼き':[90,135,19,6,0.3,1.1,0,1.3],
+  'わかさぎの天ぷら':[60,215,13,14,9.5,0.7,0.4,5.6], 'わかさぎの南蛮漬け':[70,160,12,7,12,1.4,0.3,2.3], '鮎の甘露煮':[50,210,17,6,22,2.2,0,2],
+  'うなぎの蒲焼き':[80,285,23,21,3.1,1.3,0,4.6], 'どじょうの柳川鍋':[150,120,11,4.5,8,1.8,0.6,1.5], '鯉のあらい':[80,140,14.5,8.5,0.3,0.5,0,2.8],
+  '鯉こく(味噌煮)':[150,175,14,9,9,2,0.5,3], 'ふな寿司':[40,190,18,3.5,21,3.5,0.2,0.8], 'やまめの塩焼き':[90,130,18.5,5.5,0.3,1.1,0,1.8],
+  '豆腐田楽':[100,135,7.5,6,12,1.5,1.2,1], 'こんにゃく田楽':[100,75,2,0.5,14.5,1.6,2.5,0.1], 'なすの田楽':[120,120,2.8,5,16.5,1.4,2.6,1.7],
+  '里芋の田楽':[100,110,2.5,2.5,19.5,1.5,2.3,0.4],
+  // ＋インスタント・加工食品
+  'カップラーメン(醤油)':[78,445,10,19,58,7,2.5,7.6], 'カップラーメン(味噌)':[100,430,9.5,18,57,6.5,2.8,7.2], 'カップラーメン(塩)':[75,440,9,19,58,6.8,2.3,7.6],
+  'カップラーメン(豚骨)':[80,460,10,21,57,6.2,2.2,8.4], 'カップ焼きそば':[130,480,9,21,63,4,3,6.9], '袋インスタントラーメン':[100,450,10,18,62,6,2.5,7.2],
+  '即席味噌汁':[18,180,11,6,21,13,4,2], '冷凍餃子':[150,210,7,11,21,1.3,1.8,3.6], '冷凍チャーハン':[230,180,4.5,4.5,31,1.3,1.2,1.5],
+  '冷凍うどん':[200,120,2.8,0.5,26,0.4,1,0.2], '冷凍からあげ':[120,230,13,13,15,1.4,0.6,5.2], '冷凍グラタン':[200,150,5,7.5,16,0.9,0.9,2.5],
+  '牛丼の具':[120,180,8,11,11,1.8,0.5,4.6], 'パスタソース(ミートソース)':[140,110,3.5,5.5,11,1.5,1.2,1.8], 'レトルトおかゆ':[250,45,0.8,0.1,10,0.3,0.2,0],
+  'さば水煮缶':[190,190,21,11,0.2,0.9,0,2.4], 'ツナ缶(油漬け)':[70,265,17,21.5,0.1,0.9,0,7.1], 'ツナ缶(水煮)':[70,70,16,0.7,0.2,0.7,0,0.2],
+  'コンビーフ':[80,230,19,16,1.7,1.8,0,6.7], 'フルーツ缶(みかん)':[100,64,0.5,0.1,15.3,0,0.5,0], 'ロースハム':[40,210,18,14,2,2.3,0,5.9],
+  '魚肉ソーセージ':[75,160,11.5,7,12.6,2.1,0,1.5], 'カップスープ(コーンポタージュ)':[17,410,6,12,68,6.5,3.5,4], '焼売(冷凍)':[120,210,8,11,20,1.3,1.2,3.6],
+  '冷凍コロッケ':[80,230,4.5,12,26,1,2,4.8], 'スパム(ランチョンミート)':[85,315,12,28,3,2.2,0,11.8], 'やきとり缶(たれ)':[75,180,15,9,9.5,1.9,0,3],
+  'レトルトミートボール':[100,190,9,11,13,1.6,0.7,3.6], 'インスタント焼きそば(袋)':[120,470,8.5,20,64,4.5,3.2,8],
+  // ＋スナック・米菓
+  'ポテトチップス（うすしお）':[60,554,4.7,35.2,54.7,1,4.2,7.7], 'ポテトチップス（のりしお）':[60,550,5,34.8,54.2,1.2,4.6,13.9], 'ポテトチップス（コンソメ）':[60,551,5.2,34.5,54.8,1.3,4.3,13.8],
+  'コーンスナック':[50,516,5.2,27.1,63.3,1.2,1,10.8], 'チートス':[40,536,6.5,31.5,56,1.5,1.2,10.4], 'かっぱえびせん':[40,463,7.5,18,68,1.7,2,4],
+  'せんべい（醤油）':[30,368,7.3,1,83.9,1.3,0.6,0.3], 'せんべい（塩）':[30,378,6.3,3.4,80.7,1.5,0.6,1.1], 'せんべい（ざらめ）':[30,382,6.6,1,86.7,1,0.6,0.3],
+  'おかき':[30,381,7.5,2.2,82.9,1,0.8,0.5], 'あられ':[30,380,7.5,1,84.2,1.7,0.8,0.3], '揚げせんべい':[30,465,5.6,17.4,71.2,1.2,0.5,7],
+  'かりんとう（黒）':[40,439,7.5,11.6,76.3,0.1,1.6,4.6], 'ビーフジャーキー':[30,315,54.8,7.8,6.4,4.8,0,3.3], 'するめ':[20,304,69.2,4.3,0.4,2.3,0,1.4],
+  'さきいか':[25,279,45.5,3.1,17.3,6.9,0,0.7], 'アーモンド（素焼き）':[25,608,20.3,54.1,20.7,0,11,7], 'カシューナッツ（味付け）':[25,591,19.8,47.6,26.7,0.6,6.7,6.2],
+  'ピスタチオ（味付け）':[25,617,17.4,56.1,20.9,0.7,9.2,7.3], 'くるみ（素焼き）':[25,713,14.6,68.8,11.7,0,7.5,8.9], 'マカダミアナッツ':[25,751,8.3,76.7,12.2,0.5,6.2,10],
+  'バターピーナッツ':[25,592,23.3,51.3,18.3,0.4,7.5,6.7], '柿の種':[35,424,11,4,83,1,2,1.3], '柿ピー':[35,460,13.5,15,68.5,0.9,3,5],
+  'プレッツェル':[30,480,9.2,18,70,1.8,2.5,5.9], 'クラッカー':[25,492,8.5,22.5,63.9,1.5,2.1,9], 'プリッツ':[30,494,9.5,19.5,70,1.4,2.5,6.4],
+  'ポッキー':[30,507,7.5,22,69,0.6,2,7.3], 'チョコビスケット':[30,513,6.5,26,63,0.5,2.2,10.4], '小魚アーモンド':[25,476,29,24,35,2,4,3.1],
+  'いかフライ':[30,480,12,22,58,2.2,0.8,4.8], 'えびせんべい':[30,390,8,2.5,81,1.5,0.7,0.6], 'おしゃぶり昆布':[15,214,7.5,0.5,56.5,10,28,0.1],
+  // ＋世界の料理(追加)
+  'ビリヤニ':[350,185,6,6.5,25.5,0.9,1,2.1], 'ボルシチ':[300,65,3.5,3,6.5,0.8,1.5,1], 'ピロシキ':[100,280,7.5,13.5,32.5,1,1.6,4.5],
+  'タジン鍋（鶏野菜）':[300,85,6.5,3.5,6.5,0.8,1.8,0.6], 'シュラスコ（牛もも）':[150,195,24,10.5,0.5,1,0,4.4], 'ロモサルタード（ペルー）':[300,150,9.5,7.5,11,1,1.3,2.5],
+  'セビーチェ（ペルー）':[200,85,13,1.5,5.5,1.1,0.8,0.5], 'グヤーシュ（ハンガリー）':[300,100,8,5,6,1,1,1.7], 'ブラートヴルスト（ドイツソーセージ）':[120,300,13,27,1.5,1.9,0,11.3],
+  'ザワークラウト':[80,20,1,0.2,3.5,1.5,2.5,0.1], 'アイスバイン（ドイツ）':[250,250,18,19,0.5,1.3,0,7.6], 'フィッシュアンドチップス':[300,230,9.5,12,21.5,0.9,1.5,4],
+  'エッグベネディクト':[200,210,9,14.5,11,1,0.7,4.8], 'ケバブ（ドネル）':[250,215,15,15,5,1.2,0.7,5], 'ナシゴレン（インドネシア）':[300,185,6,6.5,26,1.1,1,2.1],
+  'プルコギ（韓国）':[200,175,12.5,9.5,9.5,1.3,0.9,3.1], 'バインミー（ベトナム）':[200,230,9,8,31,1.1,1.8,2.6], 'ムサカ（ギリシャ）':[300,150,7.5,9.5,9,0.9,1.8,3.1],
+  'スブラキ（ギリシャ）':[150,190,18,11.5,3,1,0.5,3.8], 'ガンボ（ケイジャン）':[300,95,7,4.5,7,1.1,1.3,1.5], 'フォンデュ（チーズ）':[150,295,18,22,5,1.5,0,13.2],
+  'ラクレット':[150,355,22.5,28.5,1,1.6,0,9.4], 'プーティン（カナダ）':[250,230,6.5,13,22,1.1,1.8,4.3],
+  // ＋和菓子・洋菓子・駄菓子
+  'いちご大福':[70,215,3.8,0.5,49,0.1,1.6,0.2], '今川焼き':[90,222,4.5,1.3,47.8,0.2,1.6,0.4], 'みたらし団子':[80,197,3.2,0.4,44.5,0.6,0.3,0.1],
+  'あんこ団子':[80,201,4,0.4,45,0.1,1.5,0.1], '水ようかん':[60,171,2.6,0.1,39.9,0,2.2,0], 'まんじゅう':[50,254,4.6,0.5,57.5,0.1,1.8,0.2],
+  'もなか':[50,277,4.9,0.3,62.5,0.1,3.1,0.1], 'わらび餅':[80,167,1.2,0.3,40,0,0.5,0.1], 'あんみつ':[180,129,1.8,0.2,30.5,0.1,1.2,0.1],
+  'シュークリーム':[80,211,5.5,11.4,21.8,0.2,0.3,6.8], 'エクレア':[80,271,5.6,15,28.5,0.2,0.3,5], 'バウムクーヘン':[60,418,6.5,24,43,0.3,0.8,7.9],
+  'クレープ':[120,243,4.8,12,28.5,0.3,0.6,4], 'アップルパイ':[110,304,3.5,17.5,33.5,0.4,1.2,7], 'モンブラン':[100,331,4.5,18,38,0.2,1.8,5.9],
+  'ホットケーキ':[150,261,7.7,5.4,45.3,0.7,1.1,2.2], 'うまい棒':[6,487,7.5,26,55,1.4,1,8.6], 'ラムネ菓子':[30,373,0,0.5,92,0,0,0.2],
+  'キャラメル':[25,433,4,11.7,77.9,0.3,0,3.9], 'マシュマロ':[30,324,2.1,0,79.3,0.1,0,0], 'あめ玉':[15,390,0,0,97.5,0,0,0],
+  // ＋コンビニ・弁当・惣菜・パン
+  '幕の内弁当':[450,150,6.5,3.5,23,1,1.2,1.2], '唐揚げ弁当':[450,195,7.5,8,23,1.1,1,3.2], 'のり弁当':[400,175,5,5.5,26,1,1.1,1.8],
+  'たまごサンド':[110,245,8,14.5,20,1.1,1.3,4.3], 'コロッケパン':[130,255,6,11,33,1.1,1.8,4.4], 'ジャムパン':[100,285,6,4.5,55,0.4,1.4,1.5],
+  'チョコパン':[100,340,6.5,15,44,0.5,2,6], 'おでん':[350,75,5.5,2.5,7.5,1.3,0.8,0.8], '肉まん':[100,250,8.5,8,36,1,1.5,2.6],
+  'あんまん':[100,280,6,5.5,51,0.3,2.2,1.8], 'ピザまん':[100,230,7,7,34,1.1,1.6,2.3], 'メンチカツ':[80,270,9,18,17,0.9,1.2,7.2],
+  'アメリカンドッグ':[100,290,8,16,28,1.1,1,5.3], 'フランクフルト':[90,270,11,23,5,1.8,0.3,7.6], 'サラダチキン':[115,105,22,1.5,1,1.1,0.2,0.2],
+  'グラタン':[250,130,5,6.5,13,0.8,0.8,2.1], 'ミートソースパスタ':[300,160,6,5.5,21,0.9,2,1.8], '焼きおにぎり':[110,180,3.5,1,39,0.9,0.6,0.3],
+  'ツナマヨおにぎり':[110,200,4.5,5.5,33,0.9,0.5,1.8], 'ひじき煮':[80,90,3,4.5,9.5,1.3,3.5,0.7], '中華まん(豚まん)':[120,245,8,7.5,37,1,1.6,3.1],
+  // ＋飲料
+  '緑茶':[200,2,0.2,0,0.2,0,0,0], '麦茶':[200,1,0,0,0.3,0,0,0], 'ウーロン茶':[200,0,0,0,0.1,0,0,0],
+  '紅茶(無糖)':[200,1,0.1,0,0.1,0,0,0], 'エナジードリンク':[250,46,0,0,11.5,0.1,0,0], '野菜ジュース':[200,21,0.7,0,4.7,0.1,0.7,0],
+  'トマトジュース':[200,15,0.7,0.1,4,0.1,0.7,0], 'りんごジュース':[200,43,0.1,0.1,11.4,0,0,0], 'スムージー':[250,55,1,0.3,12.5,0,1.2,0.1],
+  'カフェラテ':[200,51,2.7,2.8,4,0.1,0,0.9], 'ブラックコーヒー':[150,4,0.2,0,0.7,0,0,0], 'ココア(ミルク)':[200,62,2.5,2.5,8,0.1,0.5,0.8],
+  '甘酒':[150,76,1.7,0.1,18.3,0.2,0.4,0], '乳酸菌飲料':[65,71,1.1,0.1,16.4,0.1,0,0], 'ヤクルト':[65,73,1.2,0.1,16.6,0,0.4,0],
+  '低脂肪乳':[200,42,3.8,1,5.5,0.2,0,0.3], '豆乳(無調整)':[200,44,3.6,2,3.1,0,0.2,0.3], '調製豆乳':[200,63,3.2,3.6,4.8,0.1,0.3,0.6],
+  'アーモンドミルク':[200,15,0.5,1.1,1,0.1,0.5,0.1], 'オーツミルク':[200,45,0.8,1.5,6.7,0.1,0.8,0.5], '白ワイン':[120,75,0.1,0,2,0,0,0],
+  'チューハイ':[350,51,0,0,2.9,0,0,0], 'サイダー':[350,41,0,0,10.2,0,0,0], 'ジンジャーエール':[350,36,0,0,8.9,0,0,0],
+  'プロテインドリンク':[200,46,7.5,0.5,3,0.1,0.3,0.2],
+  // ＋良い油・脂・ナッツ（脂質の質）
+  'オリーブオイル（エキストラバージン）':[14,894,0,100,0,0,0,14], '米油（こめ油）':[14,921,0,100,0,0,0,20],
+  'ごま油':[14,890,0,100,0,0,0,15], 'サラダ油（なたね油）':[14,921,0,100,0,0,0,7],
+  '綿実油（めんじつ油）':[14,884,0,100,0,0,0,26], 'コーン油':[14,884,0,100,0,0,0,13], 'ひまわり油':[14,921,0,100,0,0,0,10],
+  'アマニ油・えごま油':[14,897,0,100,0,0,0,8], 'バター':[10,700,0.5,81,0.2,1.9,0,50],
+  'マーガリン':[10,715,0.4,80,0.5,1.3,0,23], 'ラード（豚脂）':[8,885,0,100,0,0,0,39],
+  'アボカド':[80,176,2.1,17.5,7.4,0,5.6,3], 'アーモンド':[25,609,20,52,21,0,10,4],
+  'くるみ':[25,674,15,69,11,0,7,6.9], 'ミックスナッツ':[25,620,18,54,18,0.2,8,7],
+  'ピーナッツ':[25,562,25,47,21,0,7,8], 'MCTオイル':[14,900,0,100,0,0,0,90],
+};
+function isEmptyItem(it){ return ALL_KEYS.every(k=>itemValue(it,k)<0.001); }
+function applyFood(it,name){
+  const d=FOOD_DB[name]; if(!d) return false;
+  it.grams=d[0];
+  const macro={energy_kcal:d[1],protein_g:d[2],fat_g:d[3],carb_g:d[4],salt_g:d[5],fiber_g:d[6],satfat_g:(d[7]!=null?d[7]:Math.round(d[3]*0.35*10)/10)};
+  ALL_KEYS.forEach(k=>{ it.per[k]= macro[k]!=null?macro[k]:0; });  // 値は100gあたり
+  it.conf='db';
+  return true;
+}
+function ensureFoodDatalist(){
+  if(document.getElementById('foodList')) return;
+  const dl=document.createElement('datalist'); dl.id='foodList';
+  dl.innerHTML=Object.keys(FOOD_DB).map(n=>`<option value="${esc(n)}"></option>`).join('');
+  document.body.appendChild(dl);
+}
+
+/* ---------- 状態 ---------- */
+let viewDate = todayStr();
+let capture = null;   // {dataUrl, thumb, base64, mealType}
+let review = null;    // {mealType, items:[], editId, thumb}
+
+function todayStr(d){ d=d||new Date(); const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
+function fmtDate(s){ const [y,m,d]=s.split('-').map(Number); const dt=new Date(y,m-1,d); const w='日月火水木金土'[dt.getDay()]; const t=(s===todayStr())?'（今日）':''; return `${m}月${d}日(${w})${t}`; }
+function uid(){ return 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function round(v,dec){ const f=Math.pow(10,dec); return Math.round((+v||0)*f)/f; }
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2200); }
+
+/* ---------- プロフィール / 目標 ---------- */
+function getProfile(){ return LS.get(K.profile,null); }
+function getTargets(){ const p=getProfile(); return p?computeTargets(p):null; }
+function getApiKey(){ return LS.get(K.apikey,''); }
+function getSettings(){ const s=LS.get(K.settings,{model:'gemini-2.5-flash'}); if(!s.model||/^gemini-2\.0-flash/.test(s.model)) s.model='gemini-2.5-flash'; return s; }
+
+/* ---------- 食事データ ---------- */
+function getMeals(){ return LS.get(K.meals,[]); }
+function setMeals(a){ return LS.set(K.meals,a); }
+// 容量対策：カロリー等の数値データは全期間残し、古い「写真」だけ自動削除（半年超の記録でも容量が破綻しないように）
+const PHOTO_KEEP_DAYS=90;
+function pruneOldPhotos(){
+  const cutoff=dateStrAgo(PHOTO_KEEP_DAYS); let changed=false;
+  const meals=getMeals();
+  meals.forEach(m=>{ if(m.status!=='draft_offline' && m.date<cutoff && (m.thumb||m.img)){ m.thumb=null; m.img=null; changed=true; } });
+  if(changed) setMeals(meals);
+}
+function mealsOf(date){ return getMeals().filter(m=>m.date===date); }
+function itemValue(it,key){ return (((it&&it.per&&+it.per[key])||0))*((it&&+it.grams)||0)/100; }
+function mealTotals(m){
+  const t={}; ALL_KEYS.forEach(k=>t[k]=0);
+  (m.items||[]).forEach(it=>ALL_KEYS.forEach(k=>t[k]+=itemValue(it,k)));
+  return t;
+}
+function dayTotals(date){
+  const t={}; ALL_KEYS.forEach(k=>t[k]=0);
+  mealsOf(date).forEach(m=>{ const mt=mealTotals(m); ALL_KEYS.forEach(k=>t[k]+=mt[k]); });
+  return t;
+}
+const MEAL_LABELS={breakfast:'🌅 朝食',lunch:'☀️ 昼食',dinner:'🌙 夕食',latenight:'🌃 夜食',snack:'🍎 間食'};
+
+/* ---------- ダッシュボードの色判定 ---------- */
+function levelFor(type, ratio){
+  // ratio = 摂取 / 目標
+  if(type==='need'){ // 不足を見る（青）。適正で緑（食材ベースのため過剰警告は出さない）
+    return ratio<0.85 ? 'blue' : 'green';
+  }
+  if(type==='protein'){
+    if(ratio<0.85) return 'blue';
+    if(ratio<=1.3) return 'green';
+    if(ratio<=1.5) return 'yellow';
+    return 'red';
+  }
+  // limit / energy : 超過を見る
+  if(ratio<=1.0) return 'green';
+  if(ratio<=1.15) return 'yellow';
+  return 'red';
+}
+const LV_LABEL={blue:'不足',green:'適正',yellow:'やや多い',red:'摂りすぎ'};
+
+/* ---------- ページ切替 ---------- */
+function go(name){
+  if(name!=='capture') stopBarcodeScan();   // 記録画面を離れたらカメラを解放
+  $$('.page').forEach(p=>p.classList.remove('active'));
+  $('#page-'+name).classList.add('active');
+  $$('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.go===name));
+  const showDate = (name==='home');
+  $('#dateNav').style.display = showDate?'flex':'none';
+  $('#hdrTitle').textContent = ({home:'きょうの栄養バランス',capture:'食事を記録',review:'内容の確認',suggest:'次の食事の提案',history:'記録と推移',tips:'豆知識：油の選び方',setup:'目標とAIの設定'})[name]||'栄養バランス';
+  window.scrollTo(0,0);
+  if(name==='home') renderHome();
+  if(name==='suggest') renderSuggest();
+  if(name==='history') renderHistory();
+  if(name==='setup') fillSetup();
+}
+$$('#tabbar button').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.go!=='home') viewDate=todayStr();
+  if(b.dataset.go==='capture'){
+    // 「記録」タブ：下書き編集中(draftId)や撮影途中(dataUrl)は保持。それ以外は毎回まっさらに開始し食事区分を選べる状態にする
+    if(capture && (capture.dataUrl || capture.draftId)) go('capture');
+    else startCapture(capture && capture.mealType);
+  } else go(b.dataset.go);
+}));
+
+/* ---------- 豆知識のトピック切替 ---------- */
+$$('#tipsNav .tip-chip').forEach(b=>b.addEventListener('click',()=>{
+  const t=b.dataset.topic;
+  $$('#tipsNav .tip-chip').forEach(c=>c.classList.toggle('on',c===b));
+  $$('#page-tips .tips-topic').forEach(d=>{ d.hidden = (d.dataset.topic!==t); });
+  window.scrollTo(0,0);
+}));
+
+/* ---------- 日付ナビ ---------- */
+function shiftDate(delta){ const [y,m,d]=viewDate.split('-').map(Number); const dt=new Date(y,m-1,d+delta); viewDate=todayStr(dt); renderHome(); }
+$('#prevDay').onclick=()=>shiftDate(-1);
+$('#nextDay').onclick=()=>shiftDate(1);
+$('#todayBtn').onclick=()=>{ viewDate=todayStr(); renderHome(); };
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden && $('#page-home').classList.contains('active')) renderHome(); });  // 日付境界で「今日」表示を更新
+
+/* ================= ホーム描画 ================= */
+function renderHome(){
+  $('#dateLabel').textContent = fmtDate(viewDate);
+  renderConditions();
+  const tg = getTargets();
+  if(!tg){ $('#dashBody').innerHTML='<p class="muted">まず <b>設定 ⚙️</b> であなたの目標を登録してください。</p>'; $('#mealSections').innerHTML=''; return; }
+  const tot = dayTotals(viewDate);
+
+  // カロリーリング
+  const eRatio = tot.energy_kcal/tg.energy_kcal;
+  const eLv = levelFor('energy',eRatio);
+  const pct = Math.min(eRatio,1)*100;
+  const C=2*Math.PI*42, off=C*(1-Math.min(eRatio,1));
+  const ringColor={green:'#43a047',yellow:'#f9a825',red:'#e53935'}[eLv];
+  let html = `<div class="kcal-ring">
+    <div class="ring"><svg width="96" height="96">
+      <circle cx="48" cy="48" r="42" fill="none" stroke="#eef2ef" stroke-width="10"/>
+      <circle cx="48" cy="48" r="42" fill="none" stroke="${ringColor}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${off}"/>
+    </svg><div class="ctr"><b>${Math.round(tot.energy_kcal)}</b><small>/ ${tg.energy_kcal} kcal</small></div></div>
+    <div class="kcal-meta">
+      <div class="big">カロリー ${Math.round(eRatio*100)}% <span style="color:${ringColor};font-size:.85rem">${({green:'適正',yellow:'やや多い',red:'摂りすぎ'})[eLv]}</span></div>
+      <div class="muted">残り ${Math.max(0,Math.round(tg.energy_kcal-tot.energy_kcal))} kcal</div>
+      <div class="muted">P/F/C 目安 ${tg.protein_g}/${tg.fat_g}/${tg.carb_g} g</div>
+    </div></div>`;
+
+  // 主要栄養バー
+  NUTRIENTS.filter(n=>n.k!=='energy_kcal').forEach(n=>{
+    html += barHtml(n, tot[n.k], tg[n.k]);
+  });
+
+  // 微量栄養（折りたたみ）
+  let micHtml='';
+  MICROS.forEach(n=>{ micHtml += barHtml(n, tot[n.k], tg[n.k], true); });
+  html += `<details class="micros"><summary>ビタミン・ミネラルを見る</summary>
+    <p class="muted" style="margin:4px 0">※AIの推定値のため不確実です。不足ぎみの目安としてご覧ください。</p>${micHtml}</details>`;
+  html += `<div class="muted" style="font-size:.76rem;margin-top:8px;line-height:1.5">💡 脂質は「質」が大事。オリーブ油・米油・青魚・ナッツなどの<b style="color:var(--green)">良い脂（不飽和）</b>は控えすぎなくてOK。バター・脂身・揚げ物・加工肉の<b style="color:var(--red)">飽和脂肪酸</b>を目安以下に。</div>`;
+
+  // 総括コメント
+  const note = daySummary(tot,tg,viewDate);
+  if(note) html += `<div class="summary-line">${note}</div>`;
+  if(tg.clamped) html += `<div class="keynote">⚠️ カロリー目標は健康上の下限（${tg.energy_kcal}kcal）です。これ以上は下げていません。さらに減らしたい場合は医師・管理栄養士にご相談ください。</div>`;
+  $('#dashBody').innerHTML = html;
+
+  renderMealSections(tot,tg);
+}
+function barHtml(n, val, target, micro){
+  const type = n.type || 'need';
+  const ratio = target? val/target : 0;
+  const lv = levelFor(type, ratio);
+  const w = Math.min(ratio,1.2)/1.2*100;
+  const dec = n.dec!=null?n.dec:0;
+  return `<div class="bar lvl-${lv}">
+    <div class="bt"><span>${n.name} <span class="tag">${LV_LABEL[lv]}</span></span>
+      <span class="v">${round(val,dec)} / ${round(target,dec)} ${n.unit}</span></div>
+    <div class="track"><div class="fill" style="width:${w}%"></div></div></div>`;
+}
+function daySummary(tot,tg,date){
+  // 上限超過を優先、なければ不足を案内
+  const order=[['salt_g','塩分'],['satfat_g','飽和脂肪(悪い脂)'],['carb_g','糖質']];
+  for(const [k,nm] of order){ const r=tot[k]/tg[k]; if(r>1.0) return `⚠️ ${nm}が目標の${Math.round(r*100)}%。次の食事は控えめに。`; }
+  if(tot.protein_g/tg.protein_g<0.7 && tot.energy_kcal>200) return `💪 たんぱく質が不足ぎみ。あと約${Math.max(0,Math.round(tg.protein_g-tot.protein_g))}g。`;
+  if(tot.fiber_g/tg.fiber_g<0.6 && tot.energy_kcal>200) return `🥦 食物繊維が不足ぎみ。海藻・きのこ・根菜をプラス。`;
+  const meals=mealsOf(date).length;
+  if(meals===0) return `今日はまだ記録がありません。📷から始めましょう。`;
+  if(tot.energy_kcal/tg.energy_kcal<=1.0 && meals>=2) return `👍 良いバランスです。この調子で。`;
+  return '';
+}
+function renderMealSections(tot,tg){
+  const meals=mealsOf(viewDate);
+  let html='';
+  ['breakfast','lunch','dinner','latenight','snack'].forEach(mt=>{
+    const list=meals.filter(m=>m.mealType===mt);
+    html+=`<div class="meal-sec"><div class="meal-head"><span class="mk">${MEAL_LABELS[mt].split(' ')[0]}</span>${MEAL_LABELS[mt].split(' ')[1]}
+      <button class="btn sub sm add" data-addmeal="${mt}">＋ 記録</button></div>`;
+    if(!list.length){ html+=`<div class="empty-meal">まだ記録なし</div>`; }
+    list.forEach(m=>{
+      const draft = m.status==='draft_offline';
+      const mtot=mealTotals(m);
+      const names=draft?'未解析の写真':((m.items||[]).map(i=>i.name).join('・')||'記録');
+      const chips=draft?'<span class="chip yellow">未解析の下書き</span>':analyzeMeal(mtot,tg).slice(0,3).map(f=>`<span class="chip ${f.level}">${f.short}</span>`).join('');
+      html+=`<div class="meal-item" data-edit="${m.id}">
+        ${m.thumb?`<img src="${m.thumb}" alt="">`:`<div style="width:52px;height:52px;border-radius:9px;background:var(--green-l);display:flex;align-items:center;justify-content:center;flex:0 0 52px">🍽</div>`}
+        <div class="mi-body"><div class="nm">${esc(names)}</div>
+          <div class="sub">${draft?'タップして解析／入力':((m.items||[]).length+'品 '+(m.edited?'· 手修正済':'')+(m.source==='manual'?'· 手入力':''))}</div>
+          ${chips?`<div class="chips">${chips}</div>`:''}
+        </div><div class="kc">${draft?'—':Math.round(mtot.energy_kcal)+'<br>kcal'}</div></div>`;
+    });
+    html+=`</div>`;
+  });
+  $('#mealSections').innerHTML=html;
+  $$('[data-addmeal]').forEach(b=>b.onclick=()=>startCapture(b.dataset.addmeal));
+  $$('[data-edit]').forEach(b=>b.onclick=()=>openEdit(b.dataset.edit));
+}
+function esc(s){ return String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])); }
+
+/* ---------- 1食ごとの「摂りすぎ」判定 ---------- */
+function analyzeMeal(tot,tg){
+  const flags=[];
+  [['salt_g','塩分'],['satfat_g','悪い脂'],['carb_g','糖質']].forEach(([k,nm])=>{
+    const share=tot[k]/tg[k];
+    if(share>0.5) flags.push({level:'red',short:nm+'多い',msg:`${nm}が1食で1日目安の${Math.round(share*100)}%。摂りすぎです。`});
+    else if(share>0.4) flags.push({level:'yellow',short:nm+'やや',msg:`${nm}がやや多め（1日目安の${Math.round(share*100)}%）。`});
+  });
+  const ps=tot.protein_g/tg.protein_g;
+  if(ps>1.0) flags.push({level:'yellow',short:'たんぱく多め',msg:`たんぱく質が1食で1日目安の${Math.round(ps*100)}%。やや多めです。`});
+  else if(ps>0.5) flags.push({level:'green',short:'たんぱく◎',msg:`たんぱく質しっかり（1日目安の${Math.round(ps*100)}%）。`});
+  return flags;
+}
+
+/* ================= 撮影 / 解析 ================= */
+// 自動判定はあくまで初期値（働き方は人それぞれなので、撮影/確認画面でいつでも変更可）。21時以降は「夜食」を既定に
+function guessMealType(){ const h=new Date().getHours(); if(h<10)return'breakfast'; if(h<15)return'lunch'; if(h<21)return'dinner'; return'latenight'; }
+function startCapture(mt){
+  capture={mealType: mt||guessMealType(), dataUrl:null, thumb:null, base64:null, mode:'food'};
+  setMealTypeSeg(capture.mealType);
+  setCaptureMode('food');
+  resetPhotoArea();
+  go('capture');
+}
+function setMealTypeSeg(mt){ $$('#mealTypeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mt===mt)); }
+$$('#mealTypeSeg button').forEach(b=>b.onclick=()=>{ if(!capture){ startCapture(b.dataset.mt); } else { capture.mealType=b.dataset.mt; setMealTypeSeg(b.dataset.mt); } });
+
+/* ---------- 記録モード切替（料理写真 / バーコード / 成分表示） ---------- */
+function photoHint(mode){
+  return (mode==='label')
+    ? 'パッケージ裏の「栄養成分表示」の表が、はっきり大きく写るように撮ってください。'
+    : '写真を撮るか、アルバムから選んでください。<br>料理が複数なら全部が写るように撮ると、AIが見分けやすくなります。';
+}
+function resetPhotoArea(){
+  if(capture){ capture.dataUrl=null; capture.base64=null; capture.thumb=null; }
+  $('#capturePreview').innerHTML='<p class="muted">'+photoHint(capture&&capture.mode)+'</p>';
+  $('#captureActions').style.display='none';
+  $('#analyzeStatus').innerHTML='';
+}
+function setCaptureMode(mode){
+  if(capture) capture.mode=mode;
+  $$('#captureModeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
+  const isBarcode = mode==='barcode';
+  $('#modePhoto').hidden=isBarcode;
+  $('#modeBarcode').hidden=!isBarcode;
+  stopBarcodeScan();
+  if(isBarcode){ $('#bcStatus').innerHTML=''; $('#bcErr').hidden=true; initBarcodeUI(); }
+  else { $('#analyzeBtn').textContent = (mode==='label') ? '🏷️ 成分表示を読み取る' : '🤖 AIで栄養を解析'; }
+}
+$$('#captureModeSeg button').forEach(b=>b.onclick=()=>{
+  if(!capture) startCapture(guessMealType());
+  setCaptureMode(b.dataset.mode);
+  if(b.dataset.mode!=='barcode') resetPhotoArea();
+});
+$('#takePhotoBtn').onclick=()=>$('#cameraInput').click();   // カメラを起動して撮影
+$('#choosePhotoBtn').onclick=()=>$('#photoInput').click();  // アルバム/ファイルから選ぶ（capture無し）
+$('#retakeBtn').onclick=()=>$('#photoInput').click();       // 撮り直しもアルバム/カメラを選べるように
+async function onPhotoPicked(e){
+  const file=e.target.files[0]; if(!file)return;
+  if(!capture) startCapture(guessMealType());
+  toast('画像を読み込み中…');
+  try{
+    const big=await resizeImage(file,768,0.72);   // 解析用：768pxに縮小（送信データ量・AI費用を抑制）
+    const thumb=await resizeImage(file,256,0.6);
+    capture.dataUrl=big.dataUrl; capture.base64=big.dataUrl.split(',')[1]; capture.thumb=thumb.dataUrl;
+    $('#capturePreview').innerHTML=`<div class="preview-wrap"><img src="${capture.dataUrl}" alt="食事の写真"></div>`;
+    $('#captureActions').style.display='flex';
+  }catch(err){ toast('画像の読み込みに失敗しました'); }
+  e.target.value='';
+}
+$('#photoInput').onchange=onPhotoPicked;
+$('#cameraInput').onchange=onPhotoPicked;
+function resizeImage(file,maxSide,quality){
+  return new Promise((res,rej)=>{
+    const img=new Image(); const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      let {width:w,height:h}=img; const sc=Math.min(1,maxSide/Math.max(w,h));
+      w=Math.round(w*sc); h=Math.round(h*sc);
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      res({dataUrl:cv.toDataURL('image/jpeg',quality),w,h});
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('img'));};
+    img.src=url;
+  });
+}
+
+/* ---------- Gemini 解析プロンプト ---------- */
+const VISION_PROMPT = `あなたは管理栄養士レベルの食事画像解析エンジンです。入力された1枚の食事写真を解析し、後段プログラムが処理するためのJSONを1つだけ返します。
+
+# 出力ルール（厳守）
+1. 出力はJSONオブジェクト1個のみ。前後に説明文・挨拶・コードフェンス(\`\`\`)を一切付けない。最初の文字は「{」、最後の文字は「}」。
+2. 文字列は日本語。数値は**半角の数字のみ**にし、単位や「約」「〜」などの文字を絶対に付けない（正しい例: "kcal":234 ／ 誤り: "kcal":"約234kcal"）。各料理の kcal・protein_g・fat_g・carb_g・salt_g・fiber_g は必ず数値で、その料理オブジェクトの直下に置く（"nutrients"などに入れ子にしない）。本当に不明な数値だけ null。
+3. 皿・椀・小鉢ごとに料理を分けて items 配列に列挙する。定食・丼・弁当は構成要素（ご飯/汁物/主菜/副菜/漬物など）に分解する。
+4. 分量(grams)は、写っている箸(約23cm)・茶碗(口径約11cm)・スプーン・ペットボトル(直径約6.5cm)・手などを基準に推定する。白米茶碗1杯≒150g・約234kcalを目安に。基準物が無ければ一般的な一人前を仮定し confidence を下げる。
+5. 味噌汁・麺類・煮物・漬物は塩分(salt_g)が高くなりやすい。揚げ物（天ぷら・唐揚げ・とんかつ）は衣と油で脂質・カロリーが上がる。調理法を踏まえて推定する。fat_g のうち、動物性脂・バター・揚げ油・加工肉に由来する飽和脂肪酸を saturated_fat_g に入れる（魚・オリーブ油/米油など植物油由来は飽和が少なめ）。
+6. 健康アドバイスや診断はしない。事実の推定のみ。
+
+# 出力スキーマ（このキー構成に厳密に従う。値は1食ぶんの推定）
+{
+  "items":[
+    {
+      "name":"白米",
+      "category":"主食",                // 主食/主菜/副菜/汁物/漬物/果物/飲料/その他
+      "grams":150,
+      "confidence":"high",             // high / mid / low（名前と分量の自信）
+      "kcal":234, "protein_g":3.8, "fat_g":0.5, "saturated_fat_g":0.2, "carb_g":55, "salt_g":0, "fiber_g":0.5,
+      "micros":{ "potassium_mg":44, "calcium_mg":5, "iron_mg":0.2,
+                 "vitamin_a_ug":0, "vitamin_b1_mg":0.03, "vitamin_c_mg":0, "vitamin_d_ug":0 }
+    }
+  ],
+  "assumptions":["ラーメンのスープは半分残す前提で塩分を推定"],
+  "note":"重なって見えない小鉢があれば、その旨"
+}
+
+JSONのみを返してください。最初の文字は「{」。`;
+
+$('#analyzeBtn').onclick=async()=>{
+  if(!capture||!capture.base64){ toast('先に写真を撮ってください'); return; }
+  const key=getApiKey();
+  if(!key){ $('#analyzeStatus').innerHTML=`<div class="keynote">APIキーが未設定です。<b>設定 ⚙️</b> でGeminiキーを登録するか、「✏️ 手で入力」をお使いください。</div>`; return; }
+  if(!navigator.onLine){ $('#analyzeStatus').innerHTML=`<div class="keynote">電波がないので今は解析できません。写真を下書き保存し、オンラインになってから記録カードを開いて解析できます。</div><button class="btn sub sm" id="draftSaveBtn">写真だけ下書き保存</button>`; $('#draftSaveBtn').onclick=saveDraft; return; }
+  const isLabel = capture.mode==='label';
+  $('#analyzeStatus').innerHTML=`<div class="spinner"></div><p class="muted" style="text-align:center">${isLabel?'成分表示を読み取り中…':'AIが解析中…（10〜20秒ほど）'}</p>`;
+  try{
+    if(isLabel){ const data=await callGeminiLabel(capture.base64); buildReviewFromLabel(data); }
+    else { const data=await callGemini(capture.base64); buildReviewFromAI(data); }
+  }catch(err){
+    $('#analyzeStatus').innerHTML=`<div class="keynote">${apiErrMsg(err)}</div>
+      <div class="row"><button class="btn sub sm" id="retryAi">再試行</button><button class="btn ghost sm" id="toManual">手で入力する</button></div>`;
+    $('#retryAi').onclick=()=>$('#analyzeBtn').click();
+    $('#toManual').onclick=()=>startManual();
+  }
+};
+async function apiError(res){ let detail=''; try{ const ej=await res.json(); detail=(ej.error&&ej.error.message)||''; }catch(e){} const err=new Error('HTTP_'+res.status); err.status=res.status; err.detail=detail; return err; }
+function detailHtml(err){ return (err&&err.detail)?`<br><small style="color:#555">Googleからの詳細: ${esc(err.detail)}</small>`:''; }
+function apiErrMsg(err){
+  if(err.message==='NO_KEY') return 'APIキーが未設定です。設定 ⚙️ で登録してください。';
+  if(err.message==='NETWORK') return '通信に失敗しました。電波・Wi-Fiを確認して、もう一度お試しください。';
+  if(err.message==='EMPTY') return 'AIが回答を返しませんでした。少し待って再試行するか、内容を変えてお試しください。';
+  if(err.message==='PARSE') return 'AIの返答を読み取れませんでした。もう一度お試しください。';
+  if(err.status===429) return 'AIの回数上限に達したようです。1〜2分待って再試行するか、設定でモデルを変えてください。'+detailHtml(err);
+  if(err.status===400||err.status===401||err.status===403) return 'APIキーが使えないか、権限がありません。キーを作り直すか確認してください。'+detailHtml(err);
+  if(err.status===404) return 'そのAIモデルが見つかりません。設定の「使うモデル」を gemini-2.5-flash にしてください。'+detailHtml(err);
+  return 'エラーが出ました'+(err.status?`（コード${err.status}）`:'')+'。'+(detailHtml(err)||('：'+esc(err.message)));
+}
+async function geminiFetch(model, body){
+  const key=getApiKey(); if(!key) throw new Error('NO_KEY');
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  let res;
+  try{ res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':key},body:JSON.stringify(body)}); }
+  catch(e){ throw new Error('NETWORK'); }   // 通信断・CORS・DNS等
+  if(!res.ok){ throw await apiError(res); }
+  return res.json();
+}
+function geminiText(data){ return (data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts||[]).map(p=>p.text||'').join(''); }
+async function callGemini(base64){
+  const model=getSettings().model||'gemini-2.5-flash';
+  const data=await geminiFetch(model,{contents:[{parts:[{text:VISION_PROMPT},{inline_data:{mime_type:'image/jpeg',data:base64}}]}],generationConfig:{temperature:0.2,responseMimeType:'application/json'}});
+  return parseAIJson(geminiText(data));
+}
+async function callGeminiText(prompt){
+  const model=getSettings().model||'gemini-2.5-flash';
+  const data=await geminiFetch(model,{contents:[{parts:[{text:prompt}]}]});
+  const text=geminiText(data);
+  if(!text.trim()) throw new Error('EMPTY');   // SAFETY/MAX_TOKENS等で本文欠落
+  return text;
+}
+
+/* ================= 栄養成分表示（ラベル）OCR ================= */
+const LABEL_OCR_PROMPT = `You are an OCR engine for food NUTRITION LABELS. The photo shows EITHER a US "Nutrition Facts" label OR a Japanese "栄養成分表示". Read ONLY what is printed on the label. Do NOT estimate, guess, or use outside knowledge about the product.
+
+Return ONE JSON object, nothing else (no markdown, no comment). Shape:
+{
+  "product_name": string|null,
+  "label_type": "us" | "jp" | "other",
+  "basis": "per_100g" | "per_serving" | "per_package",
+  "serving_size_g": number|null,
+  "servings_per_container": number|null,
+  "net_weight_g": number|null,
+  "energy_kcal": number|null,
+  "protein_g": number|null,
+  "fat_g": number|null,
+  "saturated_fat_g": number|null,
+  "carb_g": number|null,
+  "total_carb_g": number|null,
+  "fiber_g": number|null,
+  "sodium_mg": number|null,
+  "salt_g": number|null
+}
+
+RULES:
+1. NUMBERS ONLY. Strip every unit/symbol: "234 kcal"->234, "12g"->12, "140mg"->140, "0.8g"->0.8. Never output "234kcal" or "約234".
+2. IGNORE % Daily Value (%DV). On US labels each row shows a "%" on the right (e.g. Total Fat 8g 10%). Take the GRAM/MILLIGRAM amount (8), NEVER the percent (10).
+3. Pick ONE column. If two columns (per serving / per container), read PER-SERVING and set basis="per_serving". For a JP label: "100g当たり"->per_100g, "1食/1個当たり"->per_serving, "1袋当たり"->per_package.
+4. US labels are per SERVING (never per 100g) -> basis="per_serving"; Sodium is in mg -> put it in sodium_mg, leave salt_g=null.
+5. carb_g: if a JP label prints 糖質, use 糖質 for carb_g; otherwise use total carbohydrate (炭水化物 / Total Carbohydrate). ALWAYS also fill total_carb_g with the total carbohydrate. US "Total Sugars"/"糖類" is NOT 糖質.
+6. saturated_fat_g is the sub-line under Fat/脂質. fiber_g is Dietary Fiber/食物繊維. If a value is not printed/unreadable, output null (do NOT invent).
+7. serving_size_g: the grams in parentheses of the serving line. servings_per_container: count near "servings per container"/袋数; "1袋"->1.
+8. Output valid JSON only, all keys present, unknown values as null.`;
+
+async function callGeminiLabel(base64){
+  const model=getSettings().model||'gemini-2.5-flash';
+  const data=await geminiFetch(model,{contents:[{parts:[{text:LABEL_OCR_PROMPT},{inline_data:{mime_type:'image/jpeg',data:base64}}]}],generationConfig:{temperature:0.1,responseMimeType:'application/json'}});
+  return parseAIJson(geminiText(data));
+}
+function labelNum(v){ if(v==null||v==='') return null; const n=aiNum(v); return isFinite(n)?n:null; }
+function itemFromLabel(o){
+  o=(o&&typeof o==='object')?o:{};
+  const servG=labelNum(o.serving_size_g), spc=labelNum(o.servings_per_container), netG=labelNum(o.net_weight_g);
+  let basis=(o.basis==='per_100g'||o.basis==='per_serving'||o.basis==='per_package')?o.basis:null;
+  if(!basis){ basis=(o.label_type==='us')?'per_serving':(servG?'per_serving':'per_100g'); }
+  let portionG, confLow=false;
+  if(basis==='per_100g'){ portionG=100; }
+  else if(basis==='per_serving'){ portionG=servG||100; if(!servG)confLow=true; }
+  else { portionG=netG||(servG&&spc?servG*spc:(servG||100)); if(!netG&&!(servG&&spc))confLow=true; }
+  portionG=Math.max(1,portionG);
+  const energy=labelNum(o.energy_kcal), protein=labelNum(o.protein_g), fat=labelNum(o.fat_g),
+        satfat=labelNum(o.saturated_fat_g), fiber=labelNum(o.fiber_g);
+  let carb=labelNum(o.carb_g); if(carb==null) carb=labelNum(o.total_carb_g);
+  let salt=labelNum(o.salt_g); const sodiumMg=labelNum(o.sodium_mg);
+  if(salt==null&&sodiumMg!=null) salt=sodiumMg*2.54/1000;   // 食塩相当量 = Na(mg)×2.54/1000
+  const k=100/portionG; const per={}; ALL_KEYS.forEach(key=>per[key]=0);
+  const setPer=(key,val)=>{ if(val!=null&&isFinite(val)) per[key]=val*k; };
+  setPer('energy_kcal',energy); setPer('protein_g',protein); setPer('fat_g',fat);
+  setPer('satfat_g',satfat); setPer('carb_g',carb); setPer('salt_g',salt); setPer('fiber_g',fiber);
+  if(energy!=null&&(protein!=null||fat!=null||carb!=null)){   // 4P+9F+4C と乖離が大きければ確信度↓
+    const est=4*(protein||0)+9*(fat||0)+4*(carb||0);
+    if(energy>40&&Math.abs(est-energy)>energy*0.4) confLow=true;
+  }
+  return {name:o.product_name||'パッケージ食品',category:'',grams:Math.round(portionG),conf:confLow?'low':'mid',source:'label',per};
+}
+function buildReviewFromLabel(obj){
+  const it=itemFromLabel(obj);
+  review={mealType:capture?capture.mealType:guessMealType(),items:[it],editId:(capture&&capture.draftId)||null,
+          thumb:capture?capture.thumb:null,source:'label',
+          assumptions:it.conf==='low'?['ラベルの一部が読み取りにくいため、数値をご確認ください']:[],note:''};
+  renderReview(); go('review');
+}
+
+/* ================= バーコード → Open Food Facts ================= */
+const OFF_FIELDS=['product_name','product_name_en','product_name_ja','generic_name','brands','quantity','serving_size','serving_quantity','image_front_small_url','nutriments'].join(',');
+async function fetchOFFItem(barcode){
+  const code=String(barcode).replace(/[^0-9]/g,'');
+  if(code.length<8) return {ok:false,reason:'invalid_barcode'};
+  const url=`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${OFF_FIELDS}`;
+  let res;
+  try{ res=await fetch(url,{headers:{'Accept':'application/json'}}); }   // ブラウザはUA設定不可・読み取りAPIはCORS許可
+  catch(e){ return {ok:false,reason:'network_error'}; }
+  if(res.status===404) return {ok:false,reason:'not_found'};
+  if(!res.ok) return {ok:false,reason:'http_'+res.status};
+  let data; try{ data=await res.json(); }catch(e){ return {ok:false,reason:'bad_json'}; }
+  if(data.status!==1||!data.product) return {ok:false,reason:'not_found'};
+  const p=data.product, N=p.nutriments||{};
+  const num=v=>(v==null||v===''||isNaN(v))?null:Number(v);
+  let salt=num(N['salt_100g']);
+  if(salt==null){ const sod=num(N['sodium_100g']); if(sod!=null) salt=+(sod*2.54).toFixed(3); }  // OFFのsodiumはg単位
+  const per={energy_kcal:num(N['energy-kcal_100g']),protein_g:num(N['proteins_100g']),fat_g:num(N['fat_100g']),
+    satfat_g:num(N['saturated-fat_100g']),carb_g:num(N['carbohydrates_100g']),salt_g:salt,fiber_g:num(N['fiber_100g'])};
+  const hasCore=per.energy_kcal!=null||[per.protein_g,per.fat_g,per.carb_g].some(v=>v!=null);
+  if(!hasCore) return {ok:false,reason:'no_nutrition'};   // 「見つかった」≠「栄養あり」
+  const name=p.product_name_ja||p.product_name||p.product_name_en||p.generic_name||p.brands||('商品 '+code);
+  return {ok:true,item:{name,grams:100,per,_barcode:code}};
+}
+function buildReviewFromBarcode(off){
+  const per={}; ALL_KEYS.forEach(k=>per[k]=0);
+  Object.keys(off.per||{}).forEach(k=>{ const v=off.per[k]; if(v!=null&&isFinite(v)) per[k]=v; });
+  const it={name:off.name||'市販品',category:'',grams:off.grams||100,conf:'mid',source:'barcode',per,_barcode:off._barcode};
+  review={mealType:capture?capture.mealType:guessMealType(),items:[it],editId:(capture&&capture.draftId)||null,
+          thumb:(capture&&capture.thumb)||null,source:'barcode',
+          assumptions:['バーコードのデータです。食べた量(g)を実際に合わせてください'],note:''};
+  renderReview(); go('review');
+}
+async function lookupBarcode(code){
+  $('#bcStatus').innerHTML=`<div class="spinner"></div><p class="muted" style="text-align:center">探しています…</p>`;
+  const r=await fetchOFFItem(code);
+  if(r.ok){ stopBarcodeScan(); buildReviewFromBarcode(r.item); return; }
+  let msg;
+  if(r.reason==='network_error') msg='通信できませんでした。電波・Wi-Fiを確認してください。';
+  else if(r.reason==='invalid_barcode') msg='バーコード番号が正しくありません。';
+  else if(r.reason==='no_nutrition') msg='この商品はデータベースにありましたが、栄養情報が未登録でした。「🏷 成分表示」で表を撮ると確実です。';
+  else msg='この商品は見つかりませんでした（特に日本の商品は未登録が多いです）。「🏷 成分表示」で表を撮るか、手で入力してください。';
+  $('#bcStatus').innerHTML=`<div class="keynote">${msg}</div>
+    <div class="row" style="margin-top:8px"><button class="btn sub sm" id="bcToLabel">🏷 成分表示を撮る</button><button class="btn ghost sm" id="bcToManual">✏️ 手で入力</button></div>`;
+  $('#bcToLabel').onclick=()=>{ setCaptureMode('label'); resetPhotoArea(); };
+  $('#bcToManual').onclick=()=>startManual();
+}
+
+/* ---------- バーコード走査（BarcodeDetector・外部ライブラリ不要・HTTPS必須） ---------- */
+let _bcStream=null, _bcRAF=0, _bcDetector=null;
+async function barcodeSupported(){
+  if(!('BarcodeDetector' in window)) return false;
+  try{ const fmts=await BarcodeDetector.getSupportedFormats(); return fmts.includes('ean_13'); }catch(e){ return false; }
+}
+async function startBarcodeScan(videoEl,onDetect,onError){
+  try{
+    if(!(await barcodeSupported())){ onError&&onError(new Error('UNSUPPORTED')); return; }
+    _bcDetector=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
+    _bcStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false});
+    videoEl.srcObject=_bcStream; videoEl.setAttribute('playsinline',''); await videoEl.play();
+    try{ const track=_bcStream.getVideoTracks()[0];
+      if(track.getCapabilities&&track.getCapabilities().focusMode&&track.getCapabilities().focusMode.includes('continuous'))
+        await track.applyConstraints({advanced:[{focusMode:'continuous'}]}); }catch(e){}
+    let busy=false;
+    const tick=async()=>{
+      if(!_bcStream) return;
+      if(!busy){ busy=true;
+        try{ const codes=await _bcDetector.detect(videoEl);
+          if(codes&&codes.length){ const b=codes[0]; stopBarcodeScan(); onDetect(b.rawValue,b.format); return; } }catch(e){}
+        busy=false; }
+      _bcRAF=requestAnimationFrame(tick);
+    };
+    _bcRAF=requestAnimationFrame(tick);
+  }catch(err){ stopBarcodeScan(); onError&&onError(err); }
+}
+function stopBarcodeScan(){
+  if(_bcRAF){ cancelAnimationFrame(_bcRAF); _bcRAF=0; }
+  if(_bcStream){ _bcStream.getTracks().forEach(t=>t.stop()); _bcStream=null; }
+}
+function normalizeBarcode(raw){
+  const d=(raw||'').replace(/\D/g,'');
+  if(![8,12,13].includes(d.length)) return null;
+  const digits=d.split('').map(Number); const check=digits.pop();
+  let sum=0; digits.reverse().forEach((n,i)=>{ sum+=n*(i%2===0?3:1); });
+  const calc=(10-(sum%10))%10;
+  return calc===check?d:null;
+}
+async function initBarcodeUI(){
+  const ok=await barcodeSupported();
+  $('#bcScanBtn').hidden=!ok; $('#scannerWrap').style.display='none';
+  if(!ok&&!$('#bcStatus').innerHTML) $('#bcStatus').innerHTML='<p class="muted">この端末はカメラ自動読み取りに対応していません。下に番号を入力してください。</p>';
+}
+$('#bcScanBtn').onclick=()=>{
+  $('#scannerWrap').style.display='block'; $('#bcScanBtn').hidden=true; $('#bcStatus').innerHTML='';
+  startBarcodeScan($('#bcVideo'),
+    (code)=>{ $('#scannerWrap').style.display='none'; lookupBarcode(code); },
+    (err)=>{ $('#scannerWrap').style.display='none'; $('#bcScanBtn').hidden=false;
+      const m=(err&&err.message==='UNSUPPORTED')?'この端末はカメラ自動読み取りに対応していません。番号を手入力してください。'
+        :(err&&err.name==='NotAllowedError')?'カメラの使用が許可されていません。設定で許可するか、番号を手入力してください。'
+        :'カメラを起動できませんでした。番号を手入力してください。';
+      $('#bcStatus').innerHTML=`<div class="keynote">${m}</div>`; });
+};
+$('#bcStopBtn').onclick=()=>{ stopBarcodeScan(); $('#scannerWrap').style.display='none'; $('#bcScanBtn').hidden=false; };
+$('#bcLookupBtn').onclick=()=>{
+  const code=normalizeBarcode($('#bcManualCode').value);
+  if(!code){ $('#bcErr').hidden=false; $('#bcErr').textContent='番号が正しくありません（13桁/8桁・チェックデジット）。'; return; }
+  $('#bcErr').hidden=true; lookupBarcode(code);
+};
+function parseAIJson(text){
+  let t=(text||'').trim().replace(/^```[a-zA-Z]*\s*/,'').replace(/```\s*$/,'');
+  const s=t.indexOf('{'),e=t.lastIndexOf('}'); if(s>=0&&e>s)t=t.slice(s,e+1);
+  let obj; try{obj=JSON.parse(t);}catch(err){throw new Error('PARSE');}
+  if(Array.isArray(obj)) return {items:obj};        // 配列で返ってきたら包む
+  if(!obj||typeof obj!=='object') throw new Error('PARSE');  // null/数値/文字列は不正
+  return obj;
+}
+function saveDraft(){
+  let date=viewDate; if(date>todayStr())date=todayStr();
+  const m={id:uid(),date,mealType:capture.mealType,recordedAt:new Date().toISOString(),thumb:capture.thumb,img:capture.dataUrl||null,items:[],totals:{},source:'ai',edited:false,status:'draft_offline'};
+  const a=getMeals(); a.push(m);
+  if(setMeals(a)){ toast('写真を下書き保存しました'); viewDate=date; go('home'); }
+}
+
+/* ---------- AI結果→レビュー ---------- */
+function aiNum(v){
+  if(v==null) return 0;
+  if(typeof v==='number') return isFinite(v)?v:0;
+  const m=String(v).replace(/,/g,'').match(/-?\d+(?:\.\d+)?/);  // 「約234kcal」「12 g」などから数値だけ抽出
+  return m?parseFloat(m[0]):0;
+}
+function aiPick(o,keys){ if(!o||typeof o!=='object') return null; for(const k of keys){ if(o[k]!=null && o[k]!=='') return o[k]; } return null; }
+const NUT_ALIAS={
+  energy_kcal:['kcal','calories','calorie','energy_kcal','energy','カロリー'],
+  protein_g:['protein_g','protein','proteins','protein_grams','たんぱく質','タンパク質'],
+  fat_g:['fat_g','fat','fats','lipid','lipids','脂質'],
+  satfat_g:['saturated_fat_g','saturated_fat','satfat_g','sat_fat','saturated','飽和脂肪酸','飽和脂肪'],
+  carb_g:['carb_g','carbs','carb','carbohydrate','carbohydrates','carbohydrate_g','糖質','炭水化物'],
+  salt_g:['salt_g','salt','salt_equivalent','salt_equivalent_g','salteq_g','食塩相当量','塩分'],
+  fiber_g:['fiber_g','fiber','fibre','dietary_fiber','dietary_fiber_g','食物繊維']
+};
+const MIC_ALIAS={
+  potassium_mg:['potassium_mg','potassium','k_mg','カリウム'],
+  calcium_mg:['calcium_mg','calcium','ca_mg','カルシウム'],
+  iron_mg:['iron_mg','iron','fe_mg','鉄'],
+  vitamin_a_ug:['vitamin_a_ug','vitamin_a','vit_a_ug','vitaminA','ビタミンA'],
+  vitamin_b1_mg:['vitamin_b1_mg','vitamin_b1','vit_b1_mg','thiamine_mg','ビタミンB1'],
+  vitamin_c_mg:['vitamin_c_mg','vitamin_c','vit_c_mg','vitaminC','ビタミンC'],
+  vitamin_d_ug:['vitamin_d_ug','vitamin_d','vit_d_ug','vitaminD','ビタミンD']
+};
+function itemFromAI(o){
+  if(!o||typeof o!=='object') o={};                        // null/文字列要素でも落ちない
+  const n=o.nutrients||o.nutrition||o.nutritional_info||o;  // 栄養が入れ子でも直下でも拾う
+  const g=Math.max(1, aiNum(aiPick(o,['grams','weight_g','amount_g','gram','weight','quantity_g']))||100);
+  const per={};
+  Object.keys(NUT_ALIAS).forEach(kk=>{ per[kk]=aiNum(aiPick(n,NUT_ALIAS[kk]))/g*100; });
+  const mic=o.micros||o.minerals||o.vitamins||n.micros||n.minerals||{};
+  Object.keys(MIC_ALIAS).forEach(k=>{ per[k]=aiNum(aiPick(mic,MIC_ALIAS[k]))/g*100; });
+  // 塩分が無くナトリウムだけある場合は換算（食塩相当量 = Na(mg)×2.54/1000）
+  if(aiPick(n,NUT_ALIAS.salt_g)==null){
+    const SOD=['sodium_mg','sodium','na_mg','ナトリウム'];
+    const na=aiNum(aiPick(mic,SOD))||aiNum(aiPick(n,SOD))||aiNum(aiPick(o,SOD));  // 直下のナトリウムも拾う
+    if(na>0) per.salt_g = na*2.54/1000/g*100;
+  }
+  return {name:o.name||o.food||o.dish||o.item||'料理',category:o.category||'',grams:g,conf:({high:'high',mid:'mid',low:'low'})[o.confidence]||'mid',per};
+}
+function blankItem(){ const per={}; ALL_KEYS.forEach(k=>per[k]=0); return {name:'',category:'',grams:100,conf:'manual',per}; }
+function buildReviewFromAI(data){
+  const items=((data&&Array.isArray(data.items))?data.items:[]).map(itemFromAI);
+  if(!items.length) items.push(blankItem());
+  review={mealType:capture.mealType,items,editId:(capture&&capture.draftId)||null,thumb:capture.thumb,source:'ai',assumptions:(data&&data.assumptions)||[],note:(data&&data.note)||''};
+  renderReview();
+  go('review');
+}
+function startManual(){
+  if(!capture) startCapture(guessMealType());
+  review={mealType:capture?capture.mealType:guessMealType(),items:[blankItem()],editId:(capture&&capture.draftId)||null,thumb:capture?capture.thumb:null,source:'manual',assumptions:[],note:''};
+  renderReview(); go('review');
+}
+$('#manualEntryBtn').onclick=startManual;
+
+function openEdit(id){
+  const m=getMeals().find(x=>x.id===id); if(!m)return;
+  if(m.status==='draft_offline'){   // 未解析の下書き → 撮影画面に戻して「解析」or「手入力」できるようにする
+    const img=m.img||m.thumb||null;
+    capture={mealType:m.mealType, dataUrl:img, base64:(img&&img.indexOf(',')>=0)?img.split(',')[1]:null, thumb:m.thumb, draftId:id, mode:'food'};
+    setMealTypeSeg(capture.mealType);
+    setCaptureMode('food');   // 写真モードを表示（プレビューは下で上書き）
+    $('#capturePreview').innerHTML = img?`<div class="preview-wrap"><img src="${img}" alt="食事の写真"></div>`:'<p class="muted">写真がありません。撮り直すか手で入力してください。</p>';
+    $('#captureActions').style.display='flex';
+    $('#analyzeStatus').innerHTML='<p class="muted">この下書きを「AIで解析」するか「手で入力」できます。</p>';
+    go('capture'); return;
+  }
+  review={mealType:m.mealType,items:(m.items||[]).map(it=>({...it,per:{...(it.per||{})}})),editId:id,thumb:m.thumb,source:m.source,assumptions:m.aiRaw?.assumptions||[],note:m.aiRaw?.note||''};
+  if(!review.items.length) review.items.push(blankItem());
+  renderReview(); go('review');
+}
+
+/* ================= レビュー描画 ================= */
+function renderReview(){
+  ensureFoodDatalist();
+  setReviewMealSeg();
+  let html='';
+  review.items.forEach((it,i)=>{ html+=itemEditHtml(it,i); });
+  const hint = review.source==='manual'
+    ? `<div class="keynote" style="margin-bottom:8px">料理名を入れて<b>リストから選ぶ</b>と、カロリー・栄養が自動で入ります🍚<br>リストに無い物は「栄養を直接編集」に、パッケージの数字を入れてください。分量(g)を変えると全部計算し直されます。</div>`
+    : '';
+  let aiBanner='';
+  if(review.source==='ai')
+    aiBanner=`<div class="ai-note">🤖 これはAIによる<b>推定（目安）</b>です。料理名・分量・数値を直すと再計算されます。実際の値とは差が出ることがあります。
+        <button class="btn ghost sm" id="reportAiBtn">⚠️ 結果がおかしい・不適切を報告</button></div>`;
+  else if(review.source==='label')
+    aiBanner=`<div class="ai-note">🏷️ <b>栄養成分表示</b>から読み取りました。数値が合っているか確認し、<b>食べた量(g)</b>を実際に合わせてください。
+        <button class="btn ghost sm" id="reportAiBtn">⚠️ 読み取りがおかしいのを報告</button></div>`;
+  else if(review.source==='barcode')
+    aiBanner=`<div class="ai-note">▌▏ <b>バーコード</b>のデータベース（Open Food Facts）から取り込みました。<b>食べた量(g)</b>を実際に合わせてください。</div>`;
+  $('#reviewItems').innerHTML=`<label class="field"><span>いつの食事？</span>
+    <div class="seg" id="reviewMtSeg">
+      <button data-mt="breakfast">🌅 朝</button><button data-mt="lunch">☀️ 昼</button>
+      <button data-mt="dinner">🌙 夜</button><button data-mt="latenight">🌃 夜食</button><button data-mt="snack">🍎 間食</button></div></label>`+aiBanner+hint+html;
+  setReviewMealSeg();
+  $$('#reviewMtSeg button').forEach(b=>b.onclick=()=>{ review.mealType=b.dataset.mt; setReviewMealSeg(); });
+  const rb=$('#reportAiBtn'); if(rb) rb.onclick=openReport;
+  bindItemEvents();
+  renderReviewTotals();
+}
+function setReviewMealSeg(){ $$('#reviewMtSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mt===review.mealType)); }
+function itemEditHtml(it,i){
+  const confTxt={high:'確信:高',mid:'確信:中',low:'確信:低',manual:'手入力',db:'リストから'}[it.conf]||'';
+  const confCls={high:'conf-high',mid:'conf-mid',low:'conf-low',manual:'conf-mid',db:'conf-high'}[it.conf]||'conf-mid';
+  return `<div class="item-edit" data-i="${i}">
+    <div class="ie-top">
+      <input class="nm" data-f="name" list="foodList" value="${esc(it.name)}" placeholder="料理名（リストから選べます）">
+      <span class="conf-badge ${confCls}">${confTxt}</span>
+    </div>
+    <div class="gram-row">
+      <span class="muted">分量</span>
+      <input type="number" data-f="grams" value="${round(it.grams,0)}" min="1" inputmode="numeric"> <span class="muted">g</span>
+      <input type="range" data-f="gramrange" min="${Math.max(10,Math.round(it.grams*0.3))}" max="${Math.round(it.grams*2.2)}" value="${Math.round(it.grams)}">
+    </div>
+    <div class="quick">
+      <button class="btn gray sm" data-q="0.5">½</button>
+      <button class="btn gray sm" data-q="1">1人前</button>
+      <button class="btn gray sm" data-q="1.5">大盛</button>
+      <button class="btn gray sm" data-del style="margin-left:auto">削除</button>
+    </div>
+    <div class="nutri-mini" data-mini>${miniNutri(it)}</div>
+    <details style="margin-top:6px" ${review&&review.source==='manual'?'open':''}><summary class="muted" style="cursor:pointer">栄養を直接編集（パッケージの表示を見て）</summary>
+      <div class="row" style="margin-top:6px">
+        ${['energy_kcal','protein_g','fat_g','satfat_g','carb_g','salt_g','fiber_g'].map(k=>{
+          const n=NUTRIENTS.find(x=>x.k===k);
+          return `<label class="field" style="flex:1;min-width:80px;margin-bottom:6px"><span>${n.name}(${n.unit})</span>
+            <input type="number" data-edit="${k}" value="${round(itemValue(it,k),n.dec)}" step="${n.dec?0.1:1}" inputmode="decimal"></label>`;
+        }).join('')}
+      </div>
+    </details>
+  </div>`;
+}
+function miniNutri(it){
+  return ['energy_kcal','protein_g','fat_g','carb_g','salt_g'].map(k=>{
+    const n=NUTRIENTS.find(x=>x.k===k); return `${n.name} <b>${round(itemValue(it,k),n.dec)}${n.unit}</b>`;
+  }).join(' ');
+}
+function bindItemEvents(){
+  $$('#reviewItems .item-edit').forEach(el=>{
+    const i=+el.dataset.i, it=review.items[i];
+    const nmInp=el.querySelector('[data-f="name"]');
+    nmInp.oninput=e=>{ it.name=e.target.value; };
+    nmInp.onchange=()=>{ if(FOOD_DB[it.name] && isEmptyItem(it)){ applyFood(it,it.name); renderReview(); } };  // 確定時のみ自動入力（入力中のキーボード喪失を防ぐ）
+    const gInput=el.querySelector('[data-f="grams"]'), gRange=el.querySelector('[data-f="gramrange"]');
+    const applyG=g=>{ it.grams=Math.max(1,+g||1); gInput.value=Math.round(it.grams); gRange.value=Math.min(gRange.max,Math.max(gRange.min,Math.round(it.grams))); el.querySelector('[data-mini]').innerHTML=miniNutri(it); renderReviewTotals(); };
+    gInput.oninput=e=>applyG(e.target.value);
+    gRange.oninput=e=>applyG(e.target.value);
+    el.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{ applyG(it.grams*(+b.dataset.q)); });
+    el.querySelector('[data-del]').onclick=()=>{ review.items.splice(i,1); if(!review.items.length)review.items.push(blankItem()); renderReview(); };
+    el.querySelectorAll('[data-edit]').forEach(inp=>{ inp.oninput=e=>{ const k=inp.dataset.edit; it.per[k]=(+e.target.value||0)/it.grams*100; el.querySelector('[data-mini]').innerHTML=miniNutri(it); renderReviewTotals(); }; });
+  });
+}
+function reviewTotals(){ const t={}; ALL_KEYS.forEach(k=>t[k]=0); review.items.forEach(it=>ALL_KEYS.forEach(k=>t[k]+=itemValue(it,k))); return t; }
+function renderReviewTotals(){
+  const t=reviewTotals(), tg=getTargets();
+  $('#reviewTotals').innerHTML=`<b>この食事の合計</b><div class="nutri-mini" style="margin-top:6px">
+    ${['energy_kcal','protein_g','fat_g','satfat_g','carb_g','salt_g','fiber_g'].map(k=>{const n=NUTRIENTS.find(x=>x.k===k);return `${n.name.replace('（とりすぎ注意）','')} <b>${round(t[k],n.dec)}${n.unit}</b>`;}).join('  ')}</div>`;
+  if(tg){
+    const flags=analyzeMeal(t,tg);
+    $('#reviewMealFlags').innerHTML = flags.length?`<div class="chips" style="margin-top:8px">${flags.map(f=>`<span class="chip ${f.level}">${f.short}</span>`).join('')}</div>`:'';
+  }
+}
+$('#addItemBtn').onclick=()=>{ review.items.push(blankItem()); renderReview(); };
+$('#cancelReviewBtn').onclick=()=>go('home');
+$('#saveMealBtn').onclick=()=>{
+  review.items=review.items.filter(it=>it.name.trim()||itemValue(it,'energy_kcal')>0);
+  if(!review.items.length){ toast('料理名かカロリーを入れてください'); return; }
+  const a=getMeals();
+  let date = review.editId ? ((a.find(m=>m.id===review.editId)||{}).date || viewDate) : viewDate;  // 表示中の日付に保存
+  if(date>todayStr()) date=todayStr();
+  const totals=reviewTotals();
+  if(review.editId){
+    const m=a.find(x=>x.id===review.editId);
+    if(m){ m.mealType=review.mealType; m.items=review.items; m.totals=totals; m.edited=true; m.status='analyzed'; m.img=null; if(review.thumb)m.thumb=review.thumb; }
+    else { a.push({id:uid(),date,mealType:review.mealType,recordedAt:new Date().toISOString(),thumb:review.thumb,items:review.items,totals,source:review.source,edited:false,status:'analyzed',aiRaw:{assumptions:review.assumptions,note:review.note}}); }
+  }else{
+    a.push({id:uid(),date,mealType:review.mealType,recordedAt:new Date().toISOString(),thumb:review.thumb,items:review.items,totals,source:review.source,edited:false,status:'analyzed',aiRaw:{assumptions:review.assumptions,note:review.note}});
+  }
+  if(setMeals(a)){ toast('保存しました'); viewDate=date; capture=null; go('home'); }
+};
+
+/* ================= 次の食事の提案 ================= */
+function renderSuggest(){
+  const tg=getTargets();
+  if(!tg){ $('#suggestSummary').innerHTML='<p class="muted">まず設定で目標を登録してください。</p>'; $('#suggestCards').innerHTML=''; return; }
+  const date=todayStr();
+  const tot=dayTotals(date);
+  const meals=mealsOf(date);
+  const mainCount=new Set(meals.filter(m=>m.mealType!=='snack'&&m.mealType!=='latenight').map(m=>m.mealType)).size;
+  const mealsLeft=Math.max(0,3-mainCount);
+  const paceTarget=mainCount/3*100;
+
+  // サマリ
+  const remKcal=Math.max(0,Math.round(tg.energy_kcal-tot.energy_kcal));
+  $('#suggestSummary').innerHTML=`<p class="muted">今日ここまで ${meals.length}件の記録（主食事 ${mainCount}/3）</p>
+    <div class="nutri-mini">残りカロリー <b>${remKcal}kcal</b>　たんぱく質 <b>${round(tot.protein_g,0)}/${tg.protein_g}g</b>　塩分 <b>${round(tot.salt_g,1)}/${tg.salt_g}g</b>　糖質 <b>${round(tot.carb_g,0)}/${tg.carb_g}g</b></div>
+    ${mealsLeft===0?'<div class="keynote">今日の主な食事は記録済み。これは明日の参考にどうぞ。</div>':''}`;
+
+  // 警告・不足の収集
+  const cards=[]; const used={};
+  // 上限超過（優先度: 塩分>脂質>糖質）
+  [['salt_g','塩分'],['satfat_g','悪い脂(飽和脂肪)'],['carb_g','糖質']].forEach(([k,nm])=>{
+    const r=tot[k]/tg[k];
+    if(r>=1.0){ cards.push({cls:'warn',pr:1,title:`🚫 ${nm}が${Math.round(r*100)}%（オーバー）`,aim:OVER_ADVICE[k].msg,menuKey:k}); used[k]=1; }
+    else if(r>=0.8){ cards.push({cls:'warn-y',pr:2,title:`⚠️ ${nm}が${Math.round(r*100)}%`,aim:OVER_ADVICE[k].msg,menuKey:k}); used[k]=1; }
+  });
+  // たんぱく質 過多
+  if(tot.protein_g/tg.protein_g>1.3) cards.push({cls:'warn-y',pr:3,title:`ℹ️ たんぱく質が${Math.round(tot.protein_g/tg.protein_g*100)}%`,aim:OVER_ADVICE.protein_g.msg});
+  // 不足（たんぱく質・鉄・カルシウム・食物繊維・各ビタミン）
+  const needList=[['protein_g',4],['iron_mg',5],['calcium_mg',5],['fiber_g',6],['vitamin_c_mg',7],['vitamin_a_ug',7],['vitamin_d_ug',7],['vitamin_b1_mg',7],['potassium_mg',7]];
+  needList.forEach(([k,pr])=>{
+    const r=tot[k]/tg[k]; const ratioPct=r*100;
+    const pace2 = mainCount===0?33:paceTarget;  // 主食事0件でも不足提案が出るように
+    const threshold = (k==='protein_g'||k==='fiber_g') ? Math.max(0,pace2-15) : (mealsLeft<=1?80:50);
+    if(ratioPct < threshold){
+      const sf=SHORT_FOODS[k]; if(!sf)return;
+      const rem=Math.max(0,round(tg[k]-tot[k], NUTRIENTS.concat(MICROS).find(x=>x.k===k)?.dec||0));
+      cards.push({cls:'',pr,title:`＋ ${sf.label}を補おう（今 ${Math.round(ratioPct)}%）`,aim:`次の食事で <b>${sf.foods}</b> を。${sf.tip?'<br>💡 '+sf.tip:''}`,menuKey:k});
+    }
+  });
+  // 全体OK
+  if(!cards.length){
+    cards.push({cls:'',pr:9,title:'👍 バランス良好',aim:'今のところ大きな過不足はありません。次の食事は主食・主菜・副菜をそろえて普段どおりで大丈夫です。'});
+  }
+  cards.sort((a,b)=>a.pr-b.pr);
+  const top=cards.slice(0,4);
+
+  // 献立テンプレ（最優先の課題に対応）
+  let menuHtml='';
+  const mk=top.find(c=>c.menuKey&&MENU_TEMPLATES[c.menuKey]);
+  if(mk){ const t=MENU_TEMPLATES[mk.menuKey]; menuHtml=`<div class="sug-card"><h3>🍱 おすすめ献立：${t.title}</h3><div class="aim">ねらい：${t.aim}</div><div class="foods">${t.menu}</div></div>`; }
+
+  $('#suggestCards').innerHTML = top.map(c=>`<div class="sug-card ${c.cls}"><h3>${c.title}</h3><div class="aim">${c.aim}</div></div>`).join('')+menuHtml;
+  $('#aiSuggestResult').innerHTML='';
+}
+$('#aiSuggestBtn').onclick=async()=>{
+  const tg=getTargets(); if(!tg){toast('先に設定を');return;}
+  if(!getApiKey()){ $('#aiSuggestResult').innerHTML='<div class="keynote">APIキーが未設定です。設定 ⚙️ で登録してください。（上の提案はキーなしでも使えます）</div>'; return; }
+  const tot=dayTotals(todayStr()); const p=getProfile();
+  const lines=NUTRIENTS.concat(MICROS).map(n=>`${n.name}: ${round(tot[n.k],n.dec)}/${round(tg[n.k],n.dec)}${n.unit}`).join('、');
+  const ex=(p.excludes||'').trim();
+  const prompt=`あなたは管理栄養士です。日本の家庭料理で、今日の不足・過剰を補う夕食の献立を1〜2案、提案してください。各案は「主食・主菜・副菜・汁物」で簡潔に。なぜその料理かを一言添える。塩分・脂質・糖質が多い場合は増やさない工夫を入れる。${ex?'次の食材は避ける: '+ex+'。':''}医療的な断定や、効能効果（病気が治る・効く等）の断定はしない。
+今日ここまでの摂取/目標: ${lines}.
+読みやすい箇条書きの日本語で、200字程度。`;
+  $('#aiSuggestResult').innerHTML='<div class="spinner"></div>';
+  try{ const txt=await callGeminiText(prompt); $('#aiSuggestResult').innerHTML=`<div class="sug-card"><div class="foods" style="white-space:pre-wrap">${esc(txt.trim())}</div><div class="muted" style="margin-top:8px;font-size:.74rem">※AIによる一般的な食事の提案です。治療・診断ではありません。持病・服薬中の方は医師にご相談ください。</div></div>`; }
+  catch(err){ $('#aiSuggestResult').innerHTML=`<div class="keynote">${apiErrMsg(err)}</div>`; }
+};
+
+/* ================= 履歴 ================= */
+function getWeights(){ return LS.get(K.weights,[]); }
+/* ================= 振り返り（統計） ================= */
+function dateStrAgo(i){ const d=new Date(); d.setDate(d.getDate()-i); return todayStr(d); }
+function periodStats(days){
+  const keys=['energy_kcal','salt_g','protein_g','satfat_g','carb_g','fiber_g'];
+  const sum={}; keys.forEach(k=>sum[k]=0);
+  let loggedDays=0, totalMeals=0, latenightMeals=0;
+  for(let i=0;i<days;i++){
+    const d=dateStrAgo(i); const meals=mealsOf(d);
+    if(!meals.length) continue;
+    loggedDays++; totalMeals+=meals.length;
+    const t=dayTotals(d); keys.forEach(k=>sum[k]+=t[k]);
+    latenightMeals+=meals.filter(m=>m.mealType==='latenight').length;
+  }
+  const avg={}; keys.forEach(k=>avg[k]=loggedDays?sum[k]/loggedDays:0);
+  return {days,loggedDays,totalMeals,latenightMeals,avg};
+}
+function weekdayAvgKcal(days){
+  const acc=Array.from({length:7},()=>({s:0,n:0}));
+  for(let i=0;i<days;i++){
+    const dt=new Date(); dt.setDate(dt.getDate()-i);
+    const d=todayStr(dt); if(!mealsOf(d).length) continue;
+    acc[dt.getDay()].s+=dayTotals(d).energy_kcal; acc[dt.getDay()].n++;
+  }
+  return acc.map(x=>x.n?Math.round(x.s/x.n):0);
+}
+function statsComments(tg,w1,w4){
+  const c=[];
+  if(w1.loggedDays>=2){
+    const rk=w1.avg.energy_kcal/tg.energy_kcal;
+    if(rk>1.1) c.push(`🍚 ここ1週間はカロリー多め（平均${Math.round(w1.avg.energy_kcal)}／目標${tg.energy_kcal}kcal）。`);
+    else if(rk>=0.8) c.push(`👍 カロリーは目標内をキープ（平均${Math.round(w1.avg.energy_kcal)}kcal）。`);
+    const saltUp = w4.loggedDays>=5 && w1.avg.salt_g > w4.avg.salt_g*1.15;
+    if(w1.avg.salt_g>tg.salt_g) c.push(`🧂 ${saltUp?'最近、':''}塩分が多め（1週間平均${w1.avg.salt_g.toFixed(1)}／目標${tg.salt_g}g未満）。麺の汁を残す・漬物や加工品を控えめに。`);
+    else if(saltUp) c.push(`🧂 最近、塩分が増え気味（1週間平均${w1.avg.salt_g.toFixed(1)}g）。`);
+    if(w1.avg.protein_g < tg.protein_g*0.8) c.push(`💪 たんぱく質が不足ぎみ（平均${Math.round(w1.avg.protein_g)}／目標${tg.protein_g}g）。`);
+  }
+  if((w1.latenightMeals>0 || w4.latenightMeals>0) && (w1.loggedDays>=2 || w4.loggedDays>=4)){
+    if(w4.loggedDays>=10){
+      const perWeek=w4.latenightMeals/4;
+      c.push(`🌃 夜食は週あたり約${perWeek<10?perWeek.toFixed(1):Math.round(perWeek)}回（直近1週間で${w1.latenightMeals}回）。${perWeek>=3?'寝る2〜3時間前までに、軽く温かいものを。':''}`);
+    } else {
+      c.push(`🌃 直近1週間で夜食を${w1.latenightMeals}回記録。${w1.latenightMeals>=3?'夜遅い食事は寝る2〜3時間前までに。':''}`);
+    }
+  }
+  if(w1.loggedDays<3) c.unshift('🗒 記録した日がまだ少なめ。平均は参考程度に見てください。');
+  if(!c.length) c.push('記録がたまると、ここに平均や傾向・アドバイスが出ます。');
+  return c;
+}
+function renderStats(){
+  const body=$('#statsBody'); if(!body) return;
+  const tg=getTargets();
+  if(!tg){ body.innerHTML='<p class="muted">まず設定で目標を登録すると、振り返りが表示されます。</p>'; return; }
+  if(!getMeals().length){ body.innerHTML='<p class="muted">食事を記録すると、平均カロリー・塩分・夜食の頻度や曜日ごとの傾向がここに出ます。</p>'; return; }
+  const w1=periodStats(7), w2=periodStats(14), w4=periodStats(28);
+  const cell=(p,v,d)=> p.loggedDays? round(v,d) : '—';
+  let html=`<table class="stats-table"><thead><tr><th>項目</th><th>1週間</th><th>2週間</th><th>4週間</th></tr></thead><tbody>
+    <tr><td>記録した日</td><td>${w1.loggedDays}/7</td><td>${w2.loggedDays}/14</td><td>${w4.loggedDays}/28</td></tr>
+    <tr><td>平均カロリー</td><td>${cell(w1,w1.avg.energy_kcal,0)}</td><td>${cell(w2,w2.avg.energy_kcal,0)}</td><td>${cell(w4,w4.avg.energy_kcal,0)}</td></tr>
+    <tr><td>平均塩分(g)</td><td>${cell(w1,w1.avg.salt_g,1)}</td><td>${cell(w2,w2.avg.salt_g,1)}</td><td>${cell(w4,w4.avg.salt_g,1)}</td></tr>
+    <tr><td>平均たんぱく質(g)</td><td>${cell(w1,w1.avg.protein_g,0)}</td><td>${cell(w2,w2.avg.protein_g,0)}</td><td>${cell(w4,w4.avg.protein_g,0)}</td></tr>
+    <tr><td>夜食(回)</td><td>${w1.latenightMeals}</td><td>${w2.latenightMeals}</td><td>${w4.latenightMeals}</td></tr>
+    </tbody></table>
+    <p class="muted" style="font-size:.72rem;margin:6px 0 0;line-height:1.5">※平均は「記録した日」だけで計算（今日は記録の途中の場合あり）。目安：カロリー${tg.energy_kcal}kcal／塩分${tg.salt_g}g未満／たんぱく質${tg.protein_g}g。</p>`;
+  const comments=statsComments(tg,w1,w4);
+  html+=`<div class="keynote" style="margin-top:10px">${comments.map(c=>'・'+c).join('<br>')}</div>`;
+  const wd=weekdayAvgKcal(28), labels=['日','月','火','水','木','金','土'];
+  const mx=Math.max(tg.energy_kcal*1.1,...wd,1);
+  html+=`<div style="margin-top:12px"><div class="muted" style="font-size:.8rem;margin-bottom:5px">曜日ごとの平均カロリー（直近4週間）</div>
+    <div class="wd-chart">`+wd.map((v,i)=>{
+      const h=Math.round(v/mx*72), over=v>tg.energy_kcal*1.05;
+      return `<div class="wd-col"><div class="wd-bars"><div class="wd-bar" style="height:${h}px;background:${v?(over?'var(--red)':'var(--green2)'):'#dde'}"></div></div><div class="wd-val">${v||''}</div><div class="wd-lbl">${labels[i]}</div></div>`;
+    }).join('')+`</div></div>`;
+  body.innerHTML=html;
+}
+function renderHistory(){
+  renderStats();
+  // 体重
+  const w=getWeights(); const today=todayStr();
+  const tw=w.find(x=>x.date===today); $('#weightInput').value=tw?tw.weightKg:'';
+  drawSpark('#weightSpark', w.slice(-30).map(x=>x.weightKg), '#43a047');
+  if(w.length>=2){ const d=round(w[w.length-1].weightKg-w[0].weightKg,1); $('#weightNote').textContent=`記録 ${w.length}件 / 最初から ${d>0?'+':''}${d}kg`; }
+  else $('#weightNote').textContent='毎日同じ条件（朝など）で測ると変化が分かりやすいです。';
+
+  // カロリー推移（14日）
+  const tg=getTargets();
+  const days=[]; for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(todayStr(d)); }
+  const kcals=days.map(d=>Math.round(dayTotals(d).energy_kcal));
+  drawBars('#kcalSpark', kcals, tg?tg.energy_kcal:2000);
+
+  // 日別リスト
+  const dates=[...new Set(getMeals().map(m=>m.date))].sort().reverse().slice(0,30);
+  $('#historyList').innerHTML = dates.length? dates.map(d=>{
+    const t=dayTotals(d); const over = tg&&t.salt_g>tg.salt_g?'塩分↑':''; const lo=tg&&t.energy_kcal>tg.energy_kcal*1.05;
+    return `<div class="hist-card" data-d="${d}"><div style="flex:1"><div class="d">${fmtDate(d)}</div>
+      <div class="muted">${mealsOf(d).length}食 ・ P${round(t.protein_g,0)}/F${round(t.fat_g,0)}/C${round(t.carb_g,0)}g ${over?'· '+over:''}</div></div>
+      <div class="kc" style="color:${lo?'var(--red)':'var(--green)'};font-weight:700">${Math.round(t.energy_kcal)}kcal</div></div>`;
+  }).join('') : '<p class="muted">まだ記録がありません。</p>';
+  $$('#historyList .hist-card').forEach(c=>c.onclick=()=>{ viewDate=c.dataset.d; go('home'); });
+}
+$('#saveWeightBtn').onclick=()=>{
+  const v=+$('#weightInput').value; if(!v){toast('体重を入力してください');return;}
+  const w=getWeights(); const today=todayStr(); const ex=w.find(x=>x.date===today);
+  if(ex)ex.weightKg=v; else w.push({date:today,weightKg:v});
+  w.sort((a,b)=>a.date<b.date?-1:1); if(LS.set(K.weights,w)){ toast('体重を記録しました'); renderHistory(); }
+};
+function drawSpark(sel,vals,color){
+  const svg=$(sel); if(!vals.length){svg.innerHTML='';return;}
+  const W=320,H=60,pad=6; const mn=Math.min(...vals),mx=Math.max(...vals),rng=(mx-mn)||1;
+  const pts=vals.map((v,i)=>{ const x=pad+i*(W-2*pad)/Math.max(1,vals.length-1); const y=H-pad-(v-mn)/rng*(H-2*pad); return `${x.toFixed(1)},${y.toFixed(1)}`; });
+  svg.innerHTML=`<polyline fill="none" stroke="${color}" stroke-width="2.5" points="${pts.join(' ')}"/>`+
+    pts.map(p=>{const[x,y]=p.split(',');return `<circle cx="${x}" cy="${y}" r="2.4" fill="${color}"/>`}).join('');
+}
+function drawBars(sel,vals,target){
+  const svg=$(sel); const W=320,H=60,pad=4; const n=vals.length; const bw=(W-2*pad)/n*0.7, gap=(W-2*pad)/n*0.3;
+  const mx=Math.max(target*1.2,...vals,1);
+  let s='';
+  const ty=H-pad-(target/mx)*(H-2*pad);
+  s+=`<line x1="0" y1="${ty.toFixed(1)}" x2="${W}" y2="${ty.toFixed(1)}" stroke="#bcc" stroke-dasharray="3 3" stroke-width="1"/>`;
+  vals.forEach((v,i)=>{ const x=pad+i*((W-2*pad)/n)+gap/2; const h=(v/mx)*(H-2*pad); const y=H-pad-h; const col=v>target*1.05?'#e53935':v>0?'#43a047':'#dde'; s+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="2" fill="${col}"/>`; });
+  svg.innerHTML=s;
+}
+
+/* ---------- バックアップ ---------- */
+$('#exportBtn').onclick=()=>{
+  const dump={app:'diet',version:1,exportedAt:new Date().toISOString(),
+    profile:getProfile(),settings:getSettings(),meals:getMeals(),weights:getWeights()};
+  const blob=new Blob([JSON.stringify(dump,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url; a.download=`栄養バランス_backup_${todayStr()}.json`; a.click(); URL.revokeObjectURL(url);
+  toast('バックアップを書き出しました');
+};
+function normalizeMeal(m){
+  if(!m||typeof m!=='object') return null;
+  const items=(Array.isArray(m.items)?m.items:[]).map(it=>{
+    const per={}; ALL_KEYS.forEach(k=>per[k]=(it&&it.per&&+it.per[k])||0);
+    return {name:(it&&it.name)||'料理',category:(it&&it.category)||'',grams:(it&&+it.grams)||100,conf:(it&&it.conf)||'manual',per};
+  });
+  return {id:m.id||uid(),date:m.date||todayStr(),mealType:['breakfast','lunch','dinner','latenight','snack'].includes(m.mealType)?m.mealType:'lunch',
+    recordedAt:m.recordedAt||new Date().toISOString(),thumb:m.thumb||null,img:m.img||null,items,totals:{},
+    source:m.source||'manual',edited:!!m.edited,status:m.status||'analyzed',aiRaw:m.aiRaw||null};
+}
+$('#importFile').onchange=e=>{
+  const f=e.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=()=>{ try{ const d=JSON.parse(rd.result);
+    if(!confirm('現在のデータを、読み込んだ内容に置き換えます。よろしいですか？\n（心配な方は先に「書き出す」でバックアップを）')) return;
+    if(d.profile)LS.set(K.profile,d.profile); if(d.settings)LS.set(K.settings,d.settings);
+    if(Array.isArray(d.meals)) LS.set(K.meals, d.meals.map(normalizeMeal).filter(Boolean));
+    if(Array.isArray(d.weights)) LS.set(K.weights, d.weights.filter(w=>w&&w.date));
+    toast('データを読み込みました'); go('home');
+  }catch(err){ toast('ファイルを読み取れませんでした'); } };
+  rd.readAsText(f); e.target.value='';
+};
+
+/* ================= 設定 ================= */
+function fillSetup(){
+  const p=getProfile()||{};
+  $('#setSex').value=p.sex||'male'; $('#setAge').value=p.age||''; $('#setActivity').value=p.activity??1;
+  $('#setGoal').value=p.goal||'mild'; $('#setSalt').value=p.lowSalt?1:0; $('#setMenst').value=p.menst?1:0;
+  $('#setHeight').value=p.heightCm||''; $('#setWeight').value=p.weightKg||''; $('#setExcludes').value=p.excludes||'';
+  { const cs=Array.isArray(p.conditions)?p.conditions:[]; $$('#condChecks .cond').forEach(c=>c.checked=cs.includes(c.value)); }
+  $('#setApiKey').value=getApiKey()||''; $('#setModel').value=getSettings().model||'gemini-2.5-flash';
+  toggleMenst(); previewTargets();
+}
+function readSetupProfile(){
+  return {sex:$('#setSex').value,age:+$('#setAge').value||30,activity:+$('#setActivity').value,
+    goal:$('#setGoal').value,lowSalt:$('#setSalt').value==='1',menst:$('#setMenst').value==='1',
+    heightCm:+$('#setHeight').value||null,weightKg:+$('#setWeight').value||null,excludes:$('#setExcludes').value.trim(),
+    conditions:$$('#condChecks .cond:checked').map(c=>c.value)};
+}
+function toggleMenst(){ $('#menstWrap').style.display = $('#setSex').value==='female'?'block':'none'; }
+$('#setSex').onchange=()=>{toggleMenst();previewTargets();};
+['#setAge','#setActivity','#setGoal','#setSalt','#setMenst'].forEach(s=>$(s).onchange=previewTargets);
+$('#setAge').oninput=previewTargets;
+function previewTargets(){
+  const p=readSetupProfile(); if(!p.age){$('#targetPreview').innerHTML='';return;}
+  const t=computeTargets(p);
+  let warn='';
+  if(t.clamped) warn+='<br>⚠️ 健康上の下限カロリーに達しています。これ以上は下げていません。';
+  if(p.heightCm&&p.weightKg){ const bmi=p.weightKg/Math.pow(p.heightCm/100,2);
+    if(bmi<18.5&&(p.goal==='lose'||p.goal==='mild')) warn+=`<br>⚠️ BMIが${bmi.toFixed(1)}と低めです。減量より「維持」をおすすめします。気になる方は医師・管理栄養士にご相談を。`; }
+  $('#targetPreview').innerHTML=`<div class="keynote" style="background:var(--green-l);color:var(--green)">
+    <b>あなたの1日の目安</b><br>
+    カロリー ${t.energy_kcal}kcal ／ たんぱく質 ${t.protein_g}g ／ 脂質 ${t.fat_g}g ／ 糖質 ${t.carb_g}g<br>
+    塩分 ${t.salt_g}g未満 ／ 食物繊維 ${t.fiber_g}g以上 ／ 鉄 ${t.iron_mg}mg ／ カルシウム ${t.calcium_mg}mg${warn}</div>`;
+}
+$('#saveSetupBtn').onclick=()=>{
+  const p=readSetupProfile();
+  if(!p.age||p.age<18){ toast('年齢を入力してください（18歳以上）'); $('#setAge').focus(); return; }
+  p.createdAt=getProfile()?.createdAt||new Date().toISOString(); p.updatedAt=new Date().toISOString();
+  LS.set(K.profile,p);
+  LS.set(K.apikey,$('#setApiKey').value.trim());
+  const s=getSettings(); s.model=$('#setModel').value.trim()||'gemini-2.5-flash'; LS.set(K.settings,s);
+  toast('保存しました'); go('home');
+};
+$('#resetAllBtn').onclick=()=>{
+  if(!confirm('すべての記録・設定・APIキーを削除します。よろしいですか？（バックアップ推奨）'))return;
+  [K.profile,K.apikey,K.settings,K.meals,K.weights].forEach(LS.del); toast('削除しました'); go('setup'); fillSetup();
+};
+
+/* ================= 医療免責モーダル / AI結果の報告 ================= */
+function showDisclaimer(){ $('#disclaimerModal').hidden=false; }
+function maybeShowDisclaimer(){ if(!LS.get(K.ack,false)) showDisclaimer(); }
+$('#ackDisclaimerBtn').onclick=()=>{ LS.set(K.ack,true); $('#disclaimerModal').hidden=true; };
+$('#showDisclaimerBtn').onclick=showDisclaimer;
+
+function openReport(){ $('#reportHint').style.display='none'; $('#reportNote').value=''; $('#reportModal').hidden=false; }
+$('#closeReportBtn').onclick=()=>{ $('#reportModal').hidden=true; };
+$('#sendReportBtn').onclick=async()=>{
+  const reason=$('#reportReason').value, note=$('#reportNote').value.trim();
+  const subject='【アプリ報告】'+reason;
+  const body='種類: '+reason+'\n\n内容:\n'+(note||'（未記入）')+'\n\n--- 以下は変更しないでください ---\nアプリ: 写真でカロリー・栄養バランス';
+  if(CONTACT_EMAIL){
+    location.href=`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    $('#reportModal').hidden=true; toast('メールアプリが開きます。そのまま送信してください');
+    return;
+  }
+  // メール未設定時は報告内容をコピーして案内（提供元へ貼り付けて連絡してもらう）
+  try{ await navigator.clipboard.writeText(subject+'\n\n'+body); $('#reportHint').textContent='報告内容をコピーしました。アプリの提供元へお送りください。'; }
+  catch(e){ $('#reportHint').textContent='報告ありがとうございます。お手数ですが内容を提供元へお知らせください。'; }
+  $('#reportHint').style.display='block';
+};
+
+/* ================= 初期化 ================= */
+function init(){
+  viewDate=todayStr();
+  pruneOldPhotos();   // 3か月より前の写真を自動整理（数値データは保持）
+  if(!getProfile()){ go('setup'); fillSetup(); }
+  else { go('home'); }
+  maybeShowDisclaimer();   // 初回起動時に医療免責を表示（同意で以後非表示）
+}
+init();
+if('serviceWorker' in navigator){
+  let refreshing=false;
+  if(navigator.serviceWorker.controller){   // 既存利用者のみ：新版が有効化されたら自動再読み込み（初回インストール時は除外）
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(refreshing)return; refreshing=true; location.reload(); });
+  }
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "写真でカロリー・栄養バランス｜ダイエット食事記録",
+  "short_name": "栄養バランス",
+  "description": "食事の写真を撮るだけでAIがカロリー・栄養素を推定。朝昼晩のバランスを見て次の食事を提案します。",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f1f8f4",
+  "theme_color": "#2e7d32",
+  "categories": ["health", "lifestyle", "food"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512-mono.png", "sizes": "512x512", "type": "image/png", "purpose": "monochrome" }
+  ]
+}
