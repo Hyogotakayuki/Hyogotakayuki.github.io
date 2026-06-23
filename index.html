@@ -71,7 +71,7 @@
   .seg button.on{background:var(--green);color:#fff;font-weight:700}
   .seg.seg-wrap{flex-wrap:wrap;overflow:visible;border:none;gap:6px}
   .seg.seg-wrap button{flex:1 1 28%;min-width:84px;border:1.5px solid var(--line);border-radius:9px;line-height:1.25}
-  .seg.seg-wrap button.on{border-color:var(--green)}
+  .seg.seg-wrap button.on{background:var(--green);color:#fff;border-color:var(--green)}
 
   /* ダッシュボード */
   .kcal-ring{display:flex;align-items:center;gap:14px;margin-bottom:8px}
@@ -242,8 +242,9 @@
           <button data-mt="snack">🍎 間食</button>
         </div>
       </label>
-      <div class="seg" id="captureModeSeg" style="margin-bottom:10px">
-        <button data-mode="food" class="on">🍽 料理の写真</button>
+      <div class="seg seg-wrap" id="captureModeSeg" style="margin-bottom:10px">
+        <button data-mode="food" class="on">🍽 写真</button>
+        <button data-mode="text">✍️ 文字で記録</button>
         <button data-mode="barcode">▌▏ バーコード</button>
         <button data-mode="label">🏷 成分表示</button>
       </div>
@@ -314,7 +315,17 @@
         <p class="muted" style="margin-top:8px">市販品のバーコードから栄養を取り込みます（海外製品に強く、日本の商品は見つからないことがあります）。見つからないときは「🏷 成分表示」で表を撮るのが確実です。</p>
       </div>
 
-      <p class="muted" style="margin-top:10px">🔒 写真は解析のときだけGoogle(Gemini)へ送られ、端末内には小さな縮小版だけが保存されます。APIキーもこの端末だけに保存されます。</p>
+      <!-- 文字で記録（写真なし・AI計算） -->
+      <div id="modeText" hidden>
+        <label class="field"><span>食べたものを書いてください（料理名でも、食材でもOK）</span>
+          <textarea id="textMealInput" rows="4" placeholder="例）親子丼 1杯、ほうれん草のおひたし、味噌汁&#10;例）鶏むね肉 150g、ブロッコリー、オリーブオイル大さじ1で炒めた"></textarea>
+        </label>
+        <p class="muted">写真が撮れなかったときも、あとから文字で記録できます。だいたいの量（1杯・150g・大さじ1 など）も書くと、AIの計算がより正確になります。</p>
+        <button class="btn full" id="textAnalyzeBtn">🤖 AIで栄養を計算</button>
+        <div id="textStatus" style="margin-top:10px"></div>
+      </div>
+
+      <p class="muted" style="margin-top:10px">🔒 写真・入力内容は解析のときだけGoogle(Gemini)へ送られ、端末内には小さな縮小版だけが保存されます。APIキーもこの端末だけに保存されます。</p>
     </div>
   </section>
 
@@ -1638,10 +1649,13 @@ function setCaptureMode(mode){
   if(capture) capture.mode=mode;
   $$('#captureModeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mode===mode));
   const isBarcode = mode==='barcode';
-  $('#modePhoto').hidden=isBarcode;
-  $('#modeBarcode').hidden=!isBarcode;
+  const isText = mode==='text';
+  $('#modePhoto').hidden = isBarcode || isText;
+  $('#modeBarcode').hidden = !isBarcode;
+  $('#modeText').hidden = !isText;
   stopBarcodeScan();
   if(isBarcode){ $('#bcStatus').innerHTML=''; $('#bcErr').hidden=true; initBarcodeUI(); }
+  else if(isText){ $('#textStatus').innerHTML=''; }
   else { $('#analyzeBtn').textContent = (mode==='label') ? '🏷️ 成分表示を読み取る' : '🤖 AIで栄養を解析'; }
 }
 $$('#captureModeSeg button').forEach(b=>b.onclick=()=>{
@@ -1769,6 +1783,53 @@ async function callGemini(base64, cookMethod){
   const data=await geminiFetch(model,{contents:[{parts:[{text:prompt},{inline_data:{mime_type:'image/jpeg',data:base64}}]}],generationConfig:{temperature:0.2,responseMimeType:'application/json'}});
   return parseAIJson(geminiText(data));
 }
+const TEXT_MEAL_PROMPT = `あなたは管理栄養士レベルの食事解析エンジンです。ユーザーが文章で書いた「食べたもの」を解析し、後段プログラムが処理するためのJSONを1つだけ返します。写真はありません。料理名・食材・分量の記述から推定してください。
+
+# 出力ルール（厳守）
+1. 出力はJSONオブジェクト1個のみ。前後に説明文・挨拶・コードフェンスを一切付けない。最初の文字は「{」、最後の文字は「}」。
+2. 文字列は日本語。数値は半角の数字のみ（単位や「約」「〜」を絶対に付けない）。各料理の kcal・protein_g・fat_g・carb_g・salt_g・fiber_g は必ず数値で、その料理オブジェクトの直下に置く。本当に不明な数値だけ null。
+3. 料理・食材ごとに items 配列に分ける。定食・丼・弁当は構成要素（ご飯/汁物/主菜/副菜/漬物など）に分解する。
+4. 分量(grams)はユーザーの記述（1杯・150g・大さじ1・1個 など）を最優先で使う。記述が無い品は一般的な一人前を仮定し confidence を下げる。白米茶碗1杯≒150g・約234kcalを目安に。
+5. 調理法を踏まえる：揚げ物（天ぷら・唐揚げ・とんかつ）は衣と油で脂質・カロリーが上がる。炒め物・サラダにかけた油も加味する。fat_g のうち動物性脂・バター・揚げ油由来は saturated_fat_g に入れる（魚・オリーブ油/米油など植物油は飽和が少なめ）。
+6. 健康アドバイスや診断はしない。事実の推定のみ。
+
+# 出力スキーマ（このキー構成に厳密に従う。値は1食ぶんの推定）
+{
+  "items":[
+    { "name":"白米","category":"主食","grams":150,"confidence":"high",
+      "kcal":234,"protein_g":3.8,"fat_g":0.5,"saturated_fat_g":0.2,"carb_g":55,"salt_g":0,"fiber_g":0.5,
+      "micros":{ "potassium_mg":44,"calcium_mg":5,"iron_mg":0.2,"vitamin_a_ug":0,"vitamin_b1_mg":0.03,"vitamin_c_mg":0,"vitamin_d_ug":0 } }
+  ],
+  "assumptions":["分量の記述が無い品は一人前で推定"],
+  "note":""
+}
+
+JSONのみを返してください。最初の文字は「{」。
+
+ユーザーが書いた食事内容：
+`;
+async function callGeminiTextMeal(desc){
+  const model=getSettings().model||'gemini-2.5-flash';
+  const data=await geminiFetch(model,{contents:[{parts:[{text:TEXT_MEAL_PROMPT+desc}]}],generationConfig:{temperature:0.2,responseMimeType:'application/json'}});
+  return parseAIJson(geminiText(data));
+}
+$('#textAnalyzeBtn').onclick=async()=>{
+  const desc=($('#textMealInput').value||'').trim();
+  if(!desc){ toast('食べたものを入力してください'); return; }
+  if(!getApiKey()){ $('#textStatus').innerHTML=`<div class="keynote">APIキーが未設定です。<b>設定 ⚙️</b> でGeminiキーを登録するか、「🍽 写真」→「✏️ 手で入力」をお使いください。</div>`; return; }
+  if(!navigator.onLine){ $('#textStatus').innerHTML=`<div class="keynote">電波がないので今はAI計算ができません。オンラインのときにお試しください。</div>`; return; }
+  if(!capture){ capture={mealType:guessMealType(),dataUrl:null,thumb:null,base64:null,mode:'text',cookMethod:'auto',oil:'',oilG:14}; }
+  $('#textStatus').innerHTML=`<div class="spinner"></div><p class="muted" style="text-align:center">AIが計算中…（5〜15秒ほど）</p>`;
+  try{
+    const data=await callGeminiTextMeal(desc);
+    buildReviewFromAI(data);
+  }catch(err){
+    $('#textStatus').innerHTML=`<div class="keynote">${apiErrMsg(err)}</div>
+      <div class="row"><button class="btn sub sm" id="retryText">再試行</button><button class="btn ghost sm" id="toManualFromText">手で入力する</button></div>`;
+    $('#retryText').onclick=()=>$('#textAnalyzeBtn').click();
+    $('#toManualFromText').onclick=()=>startManual();
+  }
+};
 async function callGeminiText(prompt){
   const model=getSettings().model||'gemini-2.5-flash';
   const data=await geminiFetch(model,{contents:[{parts:[{text:prompt}]}]});
