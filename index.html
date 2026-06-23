@@ -69,6 +69,9 @@
   .seg{display:flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden}
   .seg button{flex:1;background:#fff;border:none;padding:9px 4px;font-size:.85rem;color:var(--sub);cursor:pointer}
   .seg button.on{background:var(--green);color:#fff;font-weight:700}
+  .seg.seg-wrap{flex-wrap:wrap;overflow:visible;border:none;gap:6px}
+  .seg.seg-wrap button{flex:1 1 28%;min-width:84px;border:1.5px solid var(--line);border-radius:9px;line-height:1.25}
+  .seg.seg-wrap button.on{border-color:var(--green)}
 
   /* ダッシュボード */
   .kcal-ring{display:flex;align-items:center;gap:14px;margin-bottom:8px}
@@ -247,6 +250,34 @@
 
       <!-- 料理写真 / 栄養成分表示（どちらも写真を使う） -->
       <div id="modePhoto">
+        <label class="field" id="cookMethodField"><span>調理法（任意）— 選ぶとAIが“見えない油”まで計算します</span>
+          <div class="seg seg-wrap" id="cookMethodSeg">
+            <button data-cook="auto" class="on">🤖 おまかせ</button>
+            <button data-cook="fried">🍤 揚げ物</button>
+            <button data-cook="stirfry">🍳 炒め物</button>
+            <button data-cook="grill">🔥 焼き物</button>
+            <button data-cook="simmer">🥘 煮物・汁物</button>
+            <button data-cook="steam">♨️ 蒸し・ゆで</button>
+            <button data-cook="raw">🥗 生・サラダ</button>
+          </div>
+        </label>
+        <label class="field" id="captureOilField"><span>使った油（自炊のとき・任意）— 選ぶと記録に自動で足します</span>
+          <div class="seg seg-wrap" id="captureOilSeg">
+            <button data-oil="" class="on">なし</button>
+            <button data-oil="オリーブオイル（エキストラバージン）">オリーブ</button>
+            <button data-oil="米油（こめ油）">米油</button>
+            <button data-oil="ごま油">ごま油</button>
+            <button data-oil="サラダ油（なたね油）">サラダ油</button>
+            <button data-oil="グレープシードオイル">グレープシード</button>
+            <button data-oil="バター">バター</button>
+          </div>
+          <div class="seg" id="captureOilAmtSeg" style="margin-top:6px" hidden>
+            <button data-g="4">小さじ1<br><small>約4g</small></button>
+            <button data-g="14" class="on">大さじ1<br><small>約14g</small></button>
+            <button data-g="28">大さじ2<br><small>約28g</small></button>
+          </div>
+        </label>
+        <p class="muted" id="friedOilNote" hidden style="margin:-2px 0 10px">🍤 揚げ物の油（衣が吸った分）は、写真からAIが自動で計算します。</p>
         <div class="preview-wrap" id="capturePreview">
           <p class="muted" id="photoModeHint">写真を撮るか、アルバムから選んでください。<br>料理が複数なら全部が写るように撮ると、AIが見分けやすくなります。</p>
         </div>
@@ -293,7 +324,10 @@
       <h2>✅ 内容の確認・修正</h2>
       <p class="muted">AIの推定はあくまで下書きです。料理名・分量を直すと栄養も自動で計算し直します。<span class="pill">確信度が低い項目は要チェック</span></p>
       <div id="reviewItems"></div>
-      <button class="btn ghost sm" id="addItemBtn">＋ 品目を追加</button>
+      <div class="row">
+        <button class="btn ghost sm" id="addItemBtn">＋ 品目を追加</button>
+        <button class="btn ghost sm" id="addOilBtn">🫒 使った油を足す</button>
+      </div>
       <hr class="sep">
       <div id="reviewTotals"></div>
       <div id="reviewMealFlags"></div>
@@ -786,6 +820,33 @@
     <button class="btn full" id="sendReportBtn">報告する</button>
     <button class="btn gray full" id="closeReportBtn" style="margin-top:8px">閉じる</button>
     <p class="muted" id="reportHint" style="margin-top:10px;display:none"></p>
+  </div>
+</div>
+
+<!-- ===== 使った油を足す ===== -->
+<div class="modal-overlay" id="oilModal" hidden>
+  <div class="modal-box">
+    <h2>🫒 使った油を足す</h2>
+    <p class="muted">自炊で使った油は写真に写りません。種類と量を選んで足してください（油は大さじ1で約110kcal）。</p>
+    <label class="field"><span>油の種類</span>
+      <div class="seg seg-wrap" id="oilTypeSeg">
+        <button data-oil="オリーブオイル（エキストラバージン）" class="on">オリーブ</button>
+        <button data-oil="米油（こめ油）">米油</button>
+        <button data-oil="ごま油">ごま油</button>
+        <button data-oil="サラダ油（なたね油）">サラダ油</button>
+        <button data-oil="グレープシードオイル">グレープシード</button>
+        <button data-oil="バター">バター</button>
+      </div>
+    </label>
+    <label class="field"><span>量（だいたいでOK）</span>
+      <div class="seg" id="oilAmtSeg">
+        <button data-g="4">小さじ1<br><small>約4g</small></button>
+        <button data-g="14" class="on">大さじ1<br><small>約14g</small></button>
+        <button data-g="28">大さじ2<br><small>約28g</small></button>
+      </div>
+    </label>
+    <button class="btn full" id="oilAddConfirm">この油を足す</button>
+    <button class="btn gray full" id="oilCancelBtn" style="margin-top:8px">やめる</button>
   </div>
 </div>
 
@@ -1296,6 +1357,7 @@ const FOOD_DB = {
   // ＋良い油・脂・ナッツ（脂質の質）
   'オリーブオイル（エキストラバージン）':[14,894,0,100,0,0,0,14], '米油（こめ油）':[14,921,0,100,0,0,0,20],
   'ごま油':[14,890,0,100,0,0,0,15], 'サラダ油（なたね油）':[14,921,0,100,0,0,0,7],
+  'グレープシードオイル':[14,921,0,100,0,0,0,10],
   '綿実油（めんじつ油）':[14,884,0,100,0,0,0,26], 'コーン油':[14,884,0,100,0,0,0,13], 'ひまわり油':[14,921,0,100,0,0,0,10],
   'アマニ油・えごま油':[14,897,0,100,0,0,0,8], 'バター':[10,700,0.5,81,0.2,1.9,0,50],
   'マーガリン':[10,715,0.4,80,0.5,1.3,0,23], 'ラード（豚脂）':[8,885,0,100,0,0,0,39],
@@ -1532,14 +1594,33 @@ function analyzeMeal(tot,tg){
 // 自動判定はあくまで初期値（働き方は人それぞれなので、撮影/確認画面でいつでも変更可）。21時以降は「夜食」を既定に
 function guessMealType(){ const h=new Date().getHours(); if(h<10)return'breakfast'; if(h<15)return'lunch'; if(h<21)return'dinner'; return'latenight'; }
 function startCapture(mt){
-  capture={mealType: mt||guessMealType(), dataUrl:null, thumb:null, base64:null, mode:'food'};
+  capture={mealType: mt||guessMealType(), dataUrl:null, thumb:null, base64:null, mode:'food', cookMethod:'auto', oil:'', oilG:14};
   setMealTypeSeg(capture.mealType);
+  setCookMethodSeg('auto');
+  updateOilFieldVisibility();
   setCaptureMode('food');
   resetPhotoArea();
   go('capture');
 }
 function setMealTypeSeg(mt){ $$('#mealTypeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.mt===mt)); }
 $$('#mealTypeSeg button').forEach(b=>b.onclick=()=>{ if(!capture){ startCapture(b.dataset.mt); } else { capture.mealType=b.dataset.mt; setMealTypeSeg(b.dataset.mt); } });
+function setCookMethodSeg(c){ $$('#cookMethodSeg button').forEach(b=>b.classList.toggle('on',b.dataset.cook===c)); }
+$$('#cookMethodSeg button').forEach(b=>b.onclick=()=>{ if(!capture){ startCapture(guessMealType()); } capture.cookMethod=b.dataset.cook; setCookMethodSeg(b.dataset.cook); updateOilFieldVisibility(); });
+function updateOilFieldVisibility(){
+  const fried = !!(capture && capture.cookMethod==='fried');
+  if(fried && capture) capture.oil='';      // 揚げ物の油はAIが計算するので手動の油は付けない
+  const field=$('#captureOilField'); if(field) field.style.display = fried?'none':'';
+  const note=$('#friedOilNote'); if(note) note.hidden = !fried;
+  setCaptureOilSeg();
+}
+function setCaptureOilSeg(){
+  const oil=capture?capture.oil:''; const g=capture?capture.oilG:14;
+  $$('#captureOilSeg button').forEach(b=>b.classList.toggle('on',b.dataset.oil===oil));
+  $$('#captureOilAmtSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.g===g));
+  $('#captureOilAmtSeg').hidden = !oil;
+}
+$$('#captureOilSeg button').forEach(b=>b.onclick=()=>{ if(!capture){ startCapture(guessMealType()); } capture.oil=b.dataset.oil; setCaptureOilSeg(); });
+$$('#captureOilAmtSeg button').forEach(b=>b.onclick=()=>{ if(!capture) return; capture.oilG=+b.dataset.g; setCaptureOilSeg(); });
 
 /* ---------- 記録モード切替（料理写真 / バーコード / 成分表示） ---------- */
 function photoHint(mode){
@@ -1641,7 +1722,7 @@ $('#analyzeBtn').onclick=async()=>{
   $('#analyzeStatus').innerHTML=`<div class="spinner"></div><p class="muted" style="text-align:center">${isLabel?'成分表示を読み取り中…':'AIが解析中…（10〜20秒ほど）'}</p>`;
   try{
     if(isLabel){ const data=await callGeminiLabel(capture.base64); buildReviewFromLabel(data); }
-    else { const data=await callGemini(capture.base64); buildReviewFromAI(data); }
+    else { const data=await callGemini(capture.base64, capture.cookMethod); buildReviewFromAI(data); }
   }catch(err){
     $('#analyzeStatus').innerHTML=`<div class="keynote">${apiErrMsg(err)}</div>
       <div class="row"><button class="btn sub sm" id="retryAi">再試行</button><button class="btn ghost sm" id="toManual">手で入力する</button></div>`;
@@ -1671,9 +1752,21 @@ async function geminiFetch(model, body){
   return res.json();
 }
 function geminiText(data){ return (data&&data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts||[]).map(p=>p.text||'').join(''); }
-async function callGemini(base64){
+function cookHint(method){
+  switch(method){
+    case 'fried': return '\n\n# 追加の前提（ユーザーが指定した調理法）\nこの食事は主に「揚げ物（天ぷら・唐揚げ・フライ・とんかつ・素揚げ等）」です。衣や食材が吸った揚げ油を必ず加味し、脂質(fat_g)とカロリー(kcal)を、油を使わない場合より十分に高め（多くの揚げ物で素材のみのおよそ1.5〜2倍）に見積もってください。揚げ油由来の脂質の一部は saturated_fat_g にも反映してください。';
+    case 'stirfry': return '\n\n# 追加の前提（ユーザーが指定した調理法）\nこの食事は主に「炒め物」です。炒めに使った油（1人前あたり目安で大さじ約0.5〜1＝6〜12g）を脂質(fat_g)・カロリー(kcal)に必ず加味してください。';
+    case 'grill': return '\n\n# 追加の前提（ユーザーが指定した調理法）\nこの食事は主に「焼き物」です。調理油は少量ですが、食材から出る脂や薄く引いた油を考慮してください。';
+    case 'simmer': return '\n\n# 追加の前提（ユーザーが指定した調理法）\nこの食事は主に「煮物・汁物」です。調理油は少なめです。一方で煮汁・だし・味付けにより塩分(salt_g)が高くなりやすい点を考慮してください。';
+    case 'steam': return '\n\n# 追加の前提（ユーザーが指定した調理法）\nこの食事は主に「蒸し物・ゆで物」です。調理油はほとんど使いません。余分な油・脂質を上乗せしないでください。';
+    case 'raw': return '\n\n# 追加の前提（ユーザーが指定した調理法）\nこの食事は主に「生・サラダ」です。ドレッシングやかけ油が見える場合のみ脂質に少量加味し、見えなければ油は最小限にしてください。';
+    default: return '';
+  }
+}
+async function callGemini(base64, cookMethod){
   const model=getSettings().model||'gemini-2.5-flash';
-  const data=await geminiFetch(model,{contents:[{parts:[{text:VISION_PROMPT},{inline_data:{mime_type:'image/jpeg',data:base64}}]}],generationConfig:{temperature:0.2,responseMimeType:'application/json'}});
+  const prompt=VISION_PROMPT + cookHint(cookMethod);
+  const data=await geminiFetch(model,{contents:[{parts:[{text:prompt},{inline_data:{mime_type:'image/jpeg',data:base64}}]}],generationConfig:{temperature:0.2,responseMimeType:'application/json'}});
   return parseAIJson(geminiText(data));
 }
 async function callGeminiText(prompt){
@@ -1921,16 +2014,23 @@ function itemFromAI(o){
   return {name:o.name||o.food||o.dish||o.item||'料理',category:o.category||'',grams:g,conf:({high:'high',mid:'mid',low:'low'})[o.confidence]||'mid',per};
 }
 function blankItem(){ const per={}; ALL_KEYS.forEach(k=>per[k]=0); return {name:'',category:'',grams:100,conf:'manual',per}; }
+function addCaptureOilToReview(){
+  if(!review||!capture||!capture.oil||!FOOD_DB[capture.oil]) return;
+  const it=blankItem(); it.name=capture.oil; applyFood(it,capture.oil); it.grams=capture.oilG||14;
+  review.items.push(it);
+}
 function buildReviewFromAI(data){
   const items=((data&&Array.isArray(data.items))?data.items:[]).map(itemFromAI);
   if(!items.length) items.push(blankItem());
   review={mealType:capture.mealType,items,editId:(capture&&capture.draftId)||null,thumb:capture.thumb,source:'ai',assumptions:(data&&data.assumptions)||[],note:(data&&data.note)||''};
+  addCaptureOilToReview();
   renderReview();
   go('review');
 }
 function startManual(){
   if(!capture) startCapture(guessMealType());
   review={mealType:capture?capture.mealType:guessMealType(),items:[blankItem()],editId:(capture&&capture.draftId)||null,thumb:capture?capture.thumb:null,source:'manual',assumptions:[],note:''};
+  addCaptureOilToReview();
   renderReview(); go('review');
 }
 $('#manualEntryBtn').onclick=startManual;
@@ -2043,6 +2143,26 @@ function renderReviewTotals(){
   }
 }
 $('#addItemBtn').onclick=()=>{ review.items.push(blankItem()); renderReview(); };
+/* ---------- 使った油を足す ---------- */
+let oilPick={oil:'オリーブオイル（エキストラバージン）', g:14};
+function setOilSegs(){
+  $$('#oilTypeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.oil===oilPick.oil));
+  $$('#oilAmtSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.g===oilPick.g));
+}
+$('#addOilBtn').onclick=()=>{ oilPick={oil:'オリーブオイル（エキストラバージン）', g:14}; setOilSegs(); $('#oilModal').hidden=false; };
+$$('#oilTypeSeg button').forEach(b=>b.onclick=()=>{ oilPick.oil=b.dataset.oil; setOilSegs(); });
+$$('#oilAmtSeg button').forEach(b=>b.onclick=()=>{ oilPick.g=+b.dataset.g; setOilSegs(); });
+$('#oilCancelBtn').onclick=()=>{ $('#oilModal').hidden=true; };
+$('#oilAddConfirm').onclick=()=>{
+  if(!review){ $('#oilModal').hidden=true; return; }
+  const it=blankItem(); it.name=oilPick.oil;
+  if(!applyFood(it,oilPick.oil)){ $('#oilModal').hidden=true; toast('油のデータが見つかりませんでした'); return; }
+  it.grams=oilPick.g;
+  review.items.push(it);
+  $('#oilModal').hidden=true;
+  renderReview();
+  toast('🫒 使った油を足しました');
+};
 $('#cancelReviewBtn').onclick=()=>go('home');
 $('#saveMealBtn').onclick=()=>{
   review.items=review.items.filter(it=>it.name.trim()||itemValue(it,'energy_kcal')>0);
