@@ -1573,7 +1573,7 @@ function barHtml(n, val, target, micro){
 function unsatFatHtml(val, totalFat){
   const w = totalFat>0 ? Math.min(100,Math.round(val/totalFat*100)) : 0;
   return `<div class="bar lvl-green" style="margin-left:14px;border-left:3px solid var(--green);padding-left:8px">
-    <div class="bt"><span>不飽和脂肪酸 <span class="tag">良い脂</span></span>
+    <div class="bt"><span>不飽和脂肪酸（目安）<span class="tag">総脂質−飽和</span></span>
       <span class="v">${round(val,1)} g</span></div>
     <div class="track"><div class="fill" style="width:${w}%"></div></div></div>`;
 }
