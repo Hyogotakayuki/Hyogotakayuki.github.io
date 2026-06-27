@@ -1535,12 +1535,17 @@ function renderHome(){
       <div class="muted">P/F/C 目安 ${tg.protein_g}/${tg.fat_g}/${tg.carb_g} g</div>
     </div></div>`;
 
-  // 主要栄養バー（脂質の下に内訳として不飽和脂肪酸＝良い脂を表示）
+  // 主要栄養バー（脂質の内訳＝飽和・不飽和を「総脂質に対する割合」で同じものさしに揃えて表示）
   NUTRIENTS.filter(n=>n.k!=='energy_kcal').forEach(n=>{
-    html += barHtml(n, tot[n.k], tg[n.k]);
     if(n.k==='satfat_g'){
-      const unsat = Math.max(0, (tot.fat_g||0) - (tot.satfat_g||0));
-      html += unsatFatHtml(unsat, tot.fat_g||0);
+      const fat = tot.fat_g||0;
+      const sat = Math.max(0, tot.satfat_g||0);
+      const unsat = Math.max(0, fat - sat);
+      const satLv = levelFor('limit', tg.satfat_g ? sat/tg.satfat_g : 0); // 色は1日の目安に対して判定
+      html += fatPartHtml('飽和脂肪酸', LV_LABEL[satLv], satLv, sat, fat);
+      html += fatPartHtml('不飽和脂肪酸', '良い脂', 'green', unsat, fat);
+    }else{
+      html += barHtml(n, tot[n.k], tg[n.k]);
     }
   });
 
@@ -1570,11 +1575,13 @@ function barHtml(n, val, target, micro){
       <span class="v">${round(val,dec)} / ${round(target,dec)} ${n.unit}</span></div>
     <div class="track"><div class="fill" style="width:${w}%"></div></div></div>`;
 }
-function unsatFatHtml(val, totalFat){
-  const w = totalFat>0 ? Math.min(100,Math.round(val/totalFat*100)) : 0;
-  return `<div class="bar lvl-green" style="margin-left:14px;border-left:3px solid var(--green);padding-left:8px">
-    <div class="bt"><span>不飽和脂肪酸（目安）<span class="tag">総脂質−飽和</span></span>
-      <span class="v">${round(val,1)} g</span></div>
+function fatPartHtml(name, tag, lv, val, totalFat){
+  // 飽和・不飽和を同じものさし（総脂質に対する割合）でバー表示。色は呼び出し側で指定。
+  const pct = totalFat>0 ? Math.round(val/totalFat*100) : 0;
+  const w = Math.min(100, pct);
+  return `<div class="bar lvl-${lv}" style="margin-left:14px;border-left:3px solid var(--${lv});padding-left:8px">
+    <div class="bt"><span>${name}<span class="tag">${tag}</span></span>
+      <span class="v">${round(val,1)} g（${pct}%）</span></div>
     <div class="track"><div class="fill" style="width:${w}%"></div></div></div>`;
 }
 function daySummary(tot,tg,date){
