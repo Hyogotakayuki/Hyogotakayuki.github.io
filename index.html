@@ -970,7 +970,28 @@ function computeTargets(p){
     clamped
   };
   Object.assign(t, microTargets(p));
+  applyConditionTargets(t, p, energy);
   return t;
+}
+function applyConditionTargets(t, p, energy){
+  // 生活習慣病（p.conditions）に合わせて目標値を控えめに自動調整。複数該当時は最も厳しい値を採用。
+  // すべて一般的な目安であり診療の代わりではない（特に腎臓病はたんぱく質等を自動変更せず主治医の指示を優先）。
+  const cs = Array.isArray(p.conditions)?p.conditions:[];
+  if(!cs.length) return;
+  const has = k=>cs.includes(k);
+  const notes=[];
+  const lowerTo=(key,val,label)=>{ const v=Math.round(val); if(v<t[key]){ t[key]=v; notes.push(label); } };
+  // 塩分：高血圧・腎臓病 → 6.0g未満（減塩目標）
+  if((has('hypertension')||has('kidney')) && t.salt_g>6.0){
+    t.salt_g=6.0; notes.push((has('hypertension')?'高血圧':'腎臓病')+'のため塩分を6.0gに');
+  }
+  // 飽和脂肪酸：脂質異常症 → 約6%E（さらに控えめ）
+  if(has('dyslipidemia')) lowerTo('satfat_g', energy*0.06/9, '脂質異常症のため飽和脂肪酸を控えめに');
+  // 脂質（油）：脂肪肝 → 20%E（控えめ）
+  if(has('fattyliver')) lowerTo('fat_g', energy*0.20/9, '脂肪肝のため脂質（油）を控えめに');
+  // 糖質：脂肪肝・糖尿病 → 約45%E（主食を適量に）
+  if(has('fattyliver')||has('diabetes')) lowerTo('carb_g', energy*0.45/4, (has('diabetes')?'糖尿病':'脂肪肝')+'のため糖質を控えめに');
+  if(notes.length) t.condNotes=notes;
 }
 
 /* ---------- 食材・献立アドバイス辞書 ---------- */
@@ -1534,6 +1555,11 @@ function renderHome(){
       <div class="muted">残り ${Math.max(0,Math.round(tg.energy_kcal-tot.energy_kcal))} kcal</div>
       <div class="muted">P/F/C 目安 ${tg.protein_g}/${tg.fat_g}/${tg.carb_g} g</div>
     </div></div>`;
+
+  if(tg.condNotes&&tg.condNotes.length){
+    html += `<div class="keynote">🩺 持病に合わせて目標を調整中：${tg.condNotes.join('／')}<br>
+      <span class="muted" style="font-size:.74rem">一般的な目安です。主治医・管理栄養士の指示が最優先です。</span></div>`;
+  }
 
   // 主要栄養バー（脂質の内訳＝飽和・不飽和を「総脂質に対する割合」で同じものさしに揃えて表示）
   NUTRIENTS.filter(n=>n.k!=='energy_kcal').forEach(n=>{
